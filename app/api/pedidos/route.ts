@@ -1,76 +1,90 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getPedidos, agruparPedidosPorDia, calcularTotalPedidos } from '@/lib/lojaintegrada'
+import { getPedidos, normalizarPedidos, calcularTotalPedidos, agruparPedidosPorDia } from '@/lib/lojaintegrada'
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const periodo = searchParams.get('periodo') || 'hoje'
-  const limit = parseInt(searchParams.get('limit') || '50')
+  const limit = parseInt(searchParams.get('limit') || '100')
   const offset = parseInt(searchParams.get('offset') || '0')
-  const status = searchParams.get('status') || undefined
 
   try {
     const hoje = new Date()
 
-    let data_inicio: Date
-    let data_fim: Date = new Date(hoje)
-    data_fim.setHours(23, 59, 59, 999)
+    // Busca todos os pedidos (a LI não filtra bem por data na API)
+    // Filtramos client-side depois
+    const result = await getPedidos({ limit: 500, offset })
+    const raw = result.objects || []
+    const total_api = result.meta?.total_count || raw.length
 
-    switch (periodo) {
-      case 'hoje':
-        data_inicio = new Date(hoje)
-        data_inicio.setHours(0, 0, 0, 0)
-        break
-      case 'ontem':
-        data_inicio = new Date(hoje)
-        data_inicio.setDate(data_inicio.getDate() - 1)
-        data_inicio.setHours(0, 0, 0, 0)
-        data_fim = new Date(hoje)
-        data_fim.setDate(data_fim.getDate() - 1)
-        data_fim.setHours(23, 59, 59, 999)
-        break
-      case '7d':
-        data_inicio = new Date(hoje)
-        data_inicio.setDate(data_inicio.getDate() - 7)
-        data_inicio.setHours(0, 0, 0, 0)
-        break
-      case '30d':
-        data_inicio = new Date(hoje)
-        data_inicio.setDate(data_inicio.getDate() - 30)
-        data_inicio.setHours(0, 0, 0, 0)
-        break
-      default:
-        // Custom range: periodo=2024-01-01_2024-01-31
-        const parts = periodo.split('_')
-        data_inicio = parts[0] ? new Date(parts[0]) : new Date(hoje)
-        data_fim = parts[1] ? new Date(parts[1]) : new Date(hoje)
-    }
+    // Normaliza campos
+    const todos = normalizarPedidos(raw)
 
-    const result = await getPedidos({
-      data_inicio: data_inicio.toISOString(),
-      data_fim: data_fim.toISOString(),
-      status,
-      limit,
-      offset,
+    // Filtra por período client-side
+    const inicio = calcularInicio(periodo, hoje)
+    const fim = calcularFim(periodo, hoje)
+
+    const filtrados = todos.filter((p) => {
+      if (!p.data) return false
+      const d = new Date(p.data).getTime()
+      return d >= inicio.getTime() && d <= fim.getTime()
     })
 
-    const pedidos = result.objects || result.results || []
-    const total_valor = calcularTotalPedidos(pedidos)
-    const por_dia = agruparPedidosPorDia(pedidos)
+    const total_valor = calcularTotalPedidos(filtrados)
+    const por_dia = agruparPedidosPorDia(filtrados)
 
     return NextResponse.json({
-      pedidos,
+      pedidos: filtrados.slice(0, parseInt(searchParams.get('limit') || '100')),
       meta: {
-        total_pedidos: result.meta?.total_count || pedidos.length,
+        total_pedidos: filtrados.length,
         total_valor,
         por_dia,
         periodo,
+        total_loja: total_api,
       },
     })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Erro ao buscar pedidos:', error)
     return NextResponse.json(
-      { error: 'Falha ao buscar pedidos da Loja Integrada', details: String(error) },
+      { error: `Falha ao buscar pedidos: ${error.message}`, pedidos: [], meta: { total_pedidos: 0, total_valor: 0 } },
       { status: 500 }
     )
   }
+}
+
+function calcularInicio(periodo: string, hoje: Date): Date {
+  const d = new Date(hoje)
+  switch (periodo) {
+    case 'hoje':
+      d.setHours(0, 0, 0, 0)
+      return d
+    case 'ontem': {
+      const ontem = new Date(hoje)
+      ontem.setDate(ontem.getDate() - 1)
+      ontem.setHours(0, 0, 0, 0)
+      return ontem
+    }
+    case '7d':
+      d.setDate(d.getDate() - 7)
+      d.setHours(0, 0, 0, 0)
+      return d
+    case '30d':
+      d.setDate(d.getDate() - 30)
+      d.setHours(0, 0, 0, 0)
+      return d
+    default:
+      d.setHours(0, 0, 0, 0)
+      return d
+  }
+}
+
+function calcularFim(periodo: string, hoje: Date): Date {
+  if (periodo === 'ontem') {
+    const d = new Date(hoje)
+    d.setDate(d.getDate() - 1)
+    d.setHours(23, 59, 59, 999)
+    return d
+  }
+  const d = new Date(hoje)
+  d.setHours(23, 59, 59, 999)
+  return d
 }

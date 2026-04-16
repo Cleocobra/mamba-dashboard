@@ -2,46 +2,47 @@ const BASE_URL = 'https://api.awsli.com.br/v1'
 const CHAVE_API = process.env.LI_CHAVE_API || 'c9b02688ef5097ab6a26'
 const CHAVE_APLICACAO = process.env.LI_CHAVE_APLICACAO || 'df63ca80-5968-4476-9b43-11189846cb9a'
 
-const headers = {
-  'Authorization': `chave_api ${CHAVE_API}:${CHAVE_APLICACAO}`,
-  'Content-Type': 'application/json',
+// Auth via query params (formato correto da Loja Integrada)
+function authParams(): Record<string, string> {
+  return {
+    chave_api: CHAVE_API,
+    chave_aplicacao: CHAVE_APLICACAO,
+  }
+}
+
+function buildUrl(path: string, params: Record<string, string | number | undefined> = {}): string {
+  const query = new URLSearchParams()
+  const auth = authParams()
+  for (const [k, v] of Object.entries(auth)) query.set(k, v)
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== '') query.set(k, String(v))
+  }
+  return `${BASE_URL}${path}?${query.toString()}`
 }
 
 export async function getPedidos(params: {
   data_inicio?: string
   data_fim?: string
-  status?: string
+  situacao_id?: number
   limit?: number
   offset?: number
 } = {}) {
-  const query = new URLSearchParams()
-
-  if (params.data_inicio) query.set('criado_em__gte', params.data_inicio)
-  if (params.data_fim) query.set('criado_em__lte', params.data_fim)
-  if (params.status) query.set('status', params.status)
-  query.set('limit', String(params.limit || 50))
-  query.set('offset', String(params.offset || 0))
-
-  const res = await fetch(`${BASE_URL}/pedido/?${query.toString()}`, {
-    headers,
-    next: { revalidate: 60 },
-  })
-
-  if (!res.ok) {
-    throw new Error(`Loja Integrada API error: ${res.status} ${res.statusText}`)
+  const queryParams: Record<string, string | number | undefined> = {
+    limit: params.limit || 50,
+    offset: params.offset || 0,
   }
 
-  return res.json()
-}
+  if (params.data_inicio) queryParams['criado_em__gte'] = params.data_inicio
+  if (params.data_fim)    queryParams['criado_em__lte'] = params.data_fim
+  if (params.situacao_id) queryParams['situacao'] = params.situacao_id
 
-export async function getPedidoDetalhe(id: number) {
-  const res = await fetch(`${BASE_URL}/pedido/${id}/`, {
-    headers,
-    next: { revalidate: 60 },
-  })
+  const url = buildUrl('/pedido/', queryParams)
+
+  const res = await fetch(url, { next: { revalidate: 60 } })
 
   if (!res.ok) {
-    throw new Error(`Loja Integrada API error: ${res.status}`)
+    const text = await res.text()
+    throw new Error(`Loja Integrada API ${res.status}: ${text}`)
   }
 
   return res.json()
@@ -54,10 +55,16 @@ export async function getPedidosHoje() {
   const fim = new Date(hoje)
   fim.setHours(23, 59, 59, 999)
 
-  return getPedidos({
-    data_inicio: inicio.toISOString(),
-    data_fim: fim.toISOString(),
-    limit: 100,
+  // Busca ampla e filtra client-side (LI não filtra por data_criacao de forma confiável)
+  const result = await getPedidos({ limit: 200 })
+  const pedidos = normalizarPedidos(result.objects || [])
+
+  const inicioMs = inicio.getTime()
+  const fimMs = fim.getTime()
+
+  return pedidos.filter((p: any) => {
+    const d = new Date(p.data).getTime()
+    return d >= inicioMs && d <= fimMs
   })
 }
 
@@ -65,18 +72,46 @@ export async function getPedidosPeriodo(dias: number) {
   const hoje = new Date()
   const inicio = new Date(hoje)
   inicio.setDate(inicio.getDate() - dias)
+  inicio.setHours(0, 0, 0, 0)
 
-  return getPedidos({
-    data_inicio: inicio.toISOString(),
-    data_fim: hoje.toISOString(),
-    limit: 200,
-  })
+  const result = await getPedidos({ limit: 500 })
+  const pedidos = normalizarPedidos(result.objects || [])
+
+  const inicioMs = inicio.getTime()
+  return pedidos.filter((p: any) => new Date(p.data).getTime() >= inicioMs)
+}
+
+// Normaliza o formato bruto da LI para o formato do dashboard
+export function normalizarPedidos(objects: any[]) {
+  return objects.map((p: any) => ({
+    id: p.id,
+    numero: String(p.numero || p.id),
+    data: p.data_criacao || p.data_modificacao || '',
+    cliente: extrairNomeCliente(p),
+    status: p.situacao?.nome || p.situacao?.codigo || 'desconhecido',
+    status_pagamento: p.situacao?.aprovado ? 'aprovado' : p.situacao?.cancelado ? 'cancelado' : 'pendente',
+    valor_total: String(p.valor_total || '0'),
+    produtos: [],
+  }))
+}
+
+function extrairNomeCliente(pedido: any): string {
+  // Tenta extrair o nome do cliente de diferentes campos possíveis
+  if (pedido.cliente_nome) return pedido.cliente_nome
+  if (pedido.nome_cliente) return pedido.nome_cliente
+  if (typeof pedido.cliente === 'string') {
+    // Ex: "/api/v1/cliente/89236394" → "Cliente #89236394"
+    const id = pedido.cliente.split('/').filter(Boolean).pop()
+    return id ? `Cliente #${id}` : '—'
+  }
+  if (pedido.cliente?.nome) return pedido.cliente.nome
+  return '—'
 }
 
 export function calcularTotalPedidos(pedidos: any[]): number {
   return pedidos.reduce((acc: number, p: any) => {
     const valor = parseFloat(p.valor_total || '0')
-    return acc + valor
+    return acc + (isNaN(valor) ? 0 : valor)
   }, 0)
 }
 
@@ -84,10 +119,11 @@ export function agruparPedidosPorDia(pedidos: any[]): Record<string, { entradas:
   const agrupado: Record<string, { entradas: number; quantidade: number }> = {}
 
   for (const p of pedidos) {
-    const data = p.criado_em?.split('T')[0] || p.data_criacao?.split('T')[0]
+    const data = (p.data || p.data_criacao || '').split('T')[0]
     if (!data) continue
     if (!agrupado[data]) agrupado[data] = { entradas: 0, quantidade: 0 }
-    agrupado[data].entradas += parseFloat(p.valor_total || '0')
+    const valor = parseFloat(p.valor_total || '0')
+    agrupado[data].entradas += isNaN(valor) ? 0 : valor
     agrupado[data].quantidade += 1
   }
 
