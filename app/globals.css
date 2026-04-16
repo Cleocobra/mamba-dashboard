@@ -5,8 +5,8 @@
 @tailwind utilities;
 
 :root {
-  --gold: #FFCC00;
-  --gold-dim: #CCA300;
+  --gold: #FFFF00;
+  --gold-dim: #CCCC00;
   --black: #0A0A0A;
   --dark: #111111;
   --card: #1A1A1A;
