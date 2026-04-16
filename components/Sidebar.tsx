@@ -1,51 +1,58 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
 import {
-  LayoutDashboard,
-  ShoppingBag,
-  Megaphone,
-  TrendingUp,
-  Settings,
-  ChevronRight,
-  Crosshair,
+  LayoutDashboard, ShoppingBag, Megaphone,
+  TrendingUp, Settings, ChevronRight, Crosshair, LogOut,
 } from 'lucide-react'
+import type { UserPayload } from '@/lib/auth'
 
-const navItems = [
-  {
-    label: 'Dashboard',
-    href: '/',
-    icon: LayoutDashboard,
-  },
-  {
-    label: 'Pedidos',
-    href: '/pedidos',
-    icon: ShoppingBag,
-  },
-  {
-    label: 'Fluxo de Caixa',
-    href: '/fluxo',
-    icon: TrendingUp,
-  },
-  {
-    label: 'Meta Ads',
-    href: '/anuncios',
-    icon: Megaphone,
-  },
-  {
-    label: 'Configurações',
-    href: '/configuracoes',
-    icon: Settings,
-  },
+const ALL_NAV = [
+  { label: 'Dashboard',      href: '/',             icon: LayoutDashboard, perm: 'dashboard'     },
+  { label: 'Pedidos',        href: '/pedidos',       icon: ShoppingBag,     perm: 'pedidos'       },
+  { label: 'Fluxo de Caixa', href: '/fluxo',         icon: TrendingUp,      perm: 'fluxo'         },
+  { label: 'Meta Ads',       href: '/anuncios',      icon: Megaphone,       perm: 'anuncios'      },
+  { label: 'Configurações',  href: '/configuracoes', icon: Settings,        perm: 'configuracoes' },
 ]
+
+function readUserCookie(): UserPayload | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const match = document.cookie.match(/(?:^|;\s*)mamba_info=([^;]*)/)
+    if (!match) return null
+    return JSON.parse(decodeURIComponent(match[1]))
+  } catch {
+    return null
+  }
+}
 
 export default function Sidebar() {
   const pathname = usePathname()
+  const router   = useRouter()
+  const [user, setUser] = useState<UserPayload | null>(null)
+
+  useEffect(() => { setUser(readUserCookie()) }, [])
+
+  const navItems = ALL_NAV.filter(item =>
+    !user || user.role === 'admin' || user.permissions.includes(item.perm as any)
+  )
+
+  const handleLogout = async () => {
+    await fetch('/api/auth/logout', { method: 'POST' })
+    router.push('/login')
+    router.refresh()
+  }
+
+  const initials = user?.username
+    ? user.username.slice(0, 2).toUpperCase()
+    : 'MA'
 
   return (
     <aside className="fixed inset-y-0 left-0 z-30 w-64 flex flex-col bg-mamba-dark border-r border-mamba-border">
+
       {/* Logo */}
       <div className="flex items-center gap-3 px-6 py-5 border-b border-mamba-border">
         <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-mamba-gold">
@@ -69,7 +76,7 @@ export default function Sidebar() {
         </p>
         {navItems.map((item) => {
           const isActive = pathname === item.href
-          const Icon = item.icon
+          const Icon     = item.icon
           return (
             <Link
               key={item.href}
@@ -81,31 +88,36 @@ export default function Sidebar() {
                   : 'text-mamba-silver hover:text-mamba-white hover:bg-mamba-card'
               )}
             >
-              <Icon
-                className={cn('w-4.5 h-4.5 flex-shrink-0', isActive ? 'text-mamba-black' : '')}
-                strokeWidth={isActive ? 2.5 : 2}
-              />
+              <Icon className={cn('w-4 h-4 flex-shrink-0', isActive ? 'text-mamba-black' : '')} strokeWidth={isActive ? 2.5 : 2} />
               <span className="flex-1">{item.label}</span>
-              {isActive && (
-                <ChevronRight className="w-3.5 h-3.5 text-mamba-black/60" />
-              )}
+              {isActive && <ChevronRight className="w-3.5 h-3.5 text-mamba-black/60" />}
             </Link>
           )
         })}
       </nav>
 
-      {/* Footer */}
-      <div className="px-4 py-4 border-t border-mamba-border">
+      {/* User + Logout */}
+      <div className="px-4 py-4 border-t border-mamba-border space-y-2">
         <div className="flex items-center gap-3 px-2 py-2 rounded-lg bg-mamba-card">
-          <div className="w-7 h-7 rounded-full bg-mamba-gold/20 border border-mamba-gold/30 flex items-center justify-center">
-            <span className="text-xs font-bold text-mamba-gold">MA</span>
+          <div className="w-7 h-7 rounded-full bg-mamba-gold/20 border border-mamba-gold/30 flex items-center justify-center flex-shrink-0">
+            <span className="text-xs font-bold text-mamba-gold">{initials}</span>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-semibold text-mamba-white truncate">Mamba Army</p>
-            <p className="text-[10px] text-mamba-silver/60 truncate">Painel Operacional</p>
+            <p className="text-xs font-semibold text-mamba-white truncate">{user?.username || '...'}</p>
+            <p className="text-[10px] text-mamba-silver/60 truncate">
+              {user?.role === 'admin' ? 'Administrador' : 'Usuário'}
+            </p>
           </div>
-          <div className="w-2 h-2 rounded-full bg-green-400 flex-shrink-0" title="Online" />
+          <div className="w-2 h-2 rounded-full bg-green-400 flex-shrink-0" />
         </div>
+
+        <button
+          onClick={handleLogout}
+          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-mamba-silver/60 hover:text-red-400 hover:bg-red-400/10 transition-all duration-200 cursor-pointer"
+        >
+          <LogOut className="w-3.5 h-3.5" />
+          Sair
+        </button>
       </div>
     </aside>
   )
