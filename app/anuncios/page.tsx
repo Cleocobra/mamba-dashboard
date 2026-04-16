@@ -9,16 +9,22 @@ import {
 } from 'recharts'
 import {
   Megaphone, DollarSign, Eye, MousePointer,
-  TrendingUp, Zap, ExternalLink, RefreshCw,
+  TrendingUp, Zap, RefreshCw, ShoppingCart,
 } from 'lucide-react'
 import { formatBRL, formatNumber } from '@/lib/utils'
 import { cn } from '@/lib/utils'
 
 const PRESETS = [
-  { label: 'Hoje',    value: 'today'       },
-  { label: 'Ontem',  value: 'yesterday'   },
-  { label: '7 dias', value: 'last_7d'     },
-  { label: '30 dias',value: 'last_30d'    },
+  { label: 'Hoje',    value: 'today'    },
+  { label: 'Ontem',  value: 'yesterday' },
+  { label: '7 dias', value: 'last_7d'  },
+  { label: '30 dias',value: 'last_30d' },
+]
+
+const CONTAS = [
+  { label: 'Todas',       value: 'todas'       },
+  { label: 'Mamba 2025',  value: 'Mamba 2025'  },
+  { label: 'Mamba Army',  value: 'Mamba Army'  },
 ]
 
 const ChartTooltip = ({ active, payload, label }: any) => {
@@ -38,7 +44,7 @@ export default function AnunciosPage() {
   const [connected,    setConnected]    = useState(false)
   const [error,        setError]        = useState<string | null>(null)
   const [preset,       setPreset]       = useState('last_7d')
-  const [contaAtiva,   setContaAtiva]   = useState<'todas' | '0' | '1'>('todas')
+  const [contaAtiva,   setContaAtiva]   = useState('todas')
 
   const fetchMeta = async (p = preset) => {
     try {
@@ -70,32 +76,34 @@ export default function AnunciosPage() {
     setIsRefreshing(false)
   }
 
-  // Filtra campanhas pela conta selecionada
-  const campanhasFiltradas = data?.campaigns?.filter((c: any) => {
+  // Filtra campanhas pelo nome da conta selecionada
+  const campanhasFiltradas = (data?.campaigns || []).filter((c: any) => {
     if (contaAtiva === 'todas') return true
-    const idx = parseInt(contaAtiva)
-    const accountId = idx === 0 ? '1295816082283298' : '6791359754274084'
-    return c.account_id === accountId
-  }) || []
+    return c.account_name === contaAtiva
+  })
 
   // Totais filtrados
-  const totalGasto      = campanhasFiltradas.reduce((s: number, c: any) => s + c.spend, 0)
-  const totalImpressoes = campanhasFiltradas.reduce((s: number, c: any) => s + c.impressions, 0)
-  const totalCliques    = campanhasFiltradas.reduce((s: number, c: any) => s + c.clicks, 0)
-  const cpcMedio        = totalCliques > 0 ? totalGasto / totalCliques : 0
-  const cpmMedio        = totalImpressoes > 0 ? (totalGasto / totalImpressoes) * 1000 : 0
-  const roasMedio       = campanhasFiltradas.filter((c: any) => c.roas > 0).length > 0
-    ? campanhasFiltradas.filter((c: any) => c.roas > 0).reduce((s: number, c: any) => s + c.roas, 0) /
-      campanhasFiltradas.filter((c: any) => c.roas > 0).length
-    : 0
+  const totalGasto         = campanhasFiltradas.reduce((s: number, c: any) => s + c.spend, 0)
+  const totalImpressoes    = campanhasFiltradas.reduce((s: number, c: any) => s + c.impressions, 0)
+  const totalCliques       = campanhasFiltradas.reduce((s: number, c: any) => s + c.clicks, 0)
+  const totalPurchases     = campanhasFiltradas.reduce((s: number, c: any) => s + (c.purchases || 0), 0)
+  const totalPurchaseValue = campanhasFiltradas.reduce((s: number, c: any) => s + (c.purchase_value || 0), 0)
+  const cpcMedio           = totalCliques > 0 ? totalGasto / totalCliques : 0
+  const cpmMedio           = totalImpressoes > 0 ? (totalGasto / totalImpressoes) * 1000 : 0
+  const roasMedio = (() => {
+    const com = campanhasFiltradas.filter((c: any) => c.roas > 0)
+    return com.length > 0 ? com.reduce((s: number, c: any) => s + c.roas, 0) / com.length : 0
+  })()
 
   const metricas = [
-    { label: 'Gasto Total',  value: formatBRL(totalGasto),          icon: DollarSign,   color: 'text-blue-400',   bg: 'bg-blue-400/10',   border: 'border-blue-400/20'   },
-    { label: 'Impressões',   value: formatNumber(totalImpressoes),  icon: Eye,          color: 'text-purple-400', bg: 'bg-purple-400/10', border: 'border-purple-400/20' },
-    { label: 'Cliques',      value: formatNumber(totalCliques),     icon: MousePointer, color: 'text-cyan-400',   bg: 'bg-cyan-400/10',   border: 'border-cyan-400/20'   },
-    { label: 'CPC Médio',    value: formatBRL(cpcMedio),            icon: TrendingUp,   color: 'text-orange-400', bg: 'bg-orange-400/10', border: 'border-orange-400/20' },
-    { label: 'CPM Médio',    value: formatBRL(cpmMedio),            icon: Megaphone,    color: 'text-pink-400',   bg: 'bg-pink-400/10',   border: 'border-pink-400/20'   },
-    { label: 'ROAS',         value: roasMedio > 0 ? `${roasMedio.toFixed(2)}x` : '—', icon: Zap, color: 'text-green-400', bg: 'bg-green-400/10', border: 'border-green-400/20' },
+    { label: 'Gasto Total',    value: formatBRL(totalGasto),            icon: DollarSign,   color: 'text-blue-400',   bg: 'bg-blue-400/10',   border: 'border-blue-400/20'   },
+    { label: 'Impressões',     value: formatNumber(totalImpressoes),    icon: Eye,          color: 'text-purple-400', bg: 'bg-purple-400/10', border: 'border-purple-400/20' },
+    { label: 'Cliques',        value: formatNumber(totalCliques),       icon: MousePointer, color: 'text-cyan-400',   bg: 'bg-cyan-400/10',   border: 'border-cyan-400/20'   },
+    { label: 'Conversões',     value: formatNumber(totalPurchases),     icon: ShoppingCart, color: 'text-green-400',  bg: 'bg-green-400/10',  border: 'border-green-400/20'  },
+    { label: 'Receita',        value: formatBRL(totalPurchaseValue),    icon: TrendingUp,   color: 'text-emerald-400',bg: 'bg-emerald-400/10',border: 'border-emerald-400/20'},
+    { label: 'CPC Médio',      value: formatBRL(cpcMedio),              icon: Megaphone,    color: 'text-orange-400', bg: 'bg-orange-400/10', border: 'border-orange-400/20' },
+    { label: 'CPM Médio',      value: formatBRL(cpmMedio),              icon: Megaphone,    color: 'text-pink-400',   bg: 'bg-pink-400/10',   border: 'border-pink-400/20'   },
+    { label: 'ROAS',           value: roasMedio > 0 ? `${roasMedio.toFixed(2)}x` : '—', icon: Zap, color: 'text-yellow-400', bg: 'bg-yellow-400/10', border: 'border-yellow-400/20' },
   ]
 
   return (
@@ -113,25 +121,21 @@ export default function AnunciosPage() {
 
           {/* Período + Conta */}
           <div className="flex flex-wrap items-center gap-3">
-            {/* Período */}
             <div className="flex items-center gap-1 p-1 bg-mamba-card rounded-lg border border-mamba-border">
               {PRESETS.map(p => (
                 <button key={p.value} onClick={() => setPreset(p.value)}
-                  className={cn('px-3 py-1.5 text-xs font-semibold rounded-md transition-all duration-200 cursor-pointer', preset === p.value ? 'bg-mamba-gold text-mamba-black' : 'text-mamba-silver hover:text-mamba-white')}>
+                  className={cn('px-3 py-1.5 text-xs font-semibold rounded-md transition-all duration-200 cursor-pointer',
+                    preset === p.value ? 'bg-mamba-gold text-mamba-black' : 'text-mamba-silver hover:text-mamba-white')}>
                   {p.label}
                 </button>
               ))}
             </div>
 
-            {/* Conta */}
             <div className="flex items-center gap-1 p-1 bg-mamba-card rounded-lg border border-mamba-border">
-              {[
-                { label: 'Todas', value: 'todas' },
-                { label: 'Mamba 2025',  value: '0' },
-                { label: 'Mamba Army',  value: '1' },
-              ].map(c => (
-                <button key={c.value} onClick={() => setContaAtiva(c.value as any)}
-                  className={cn('px-3 py-1.5 text-xs font-semibold rounded-md transition-all duration-200 cursor-pointer', contaAtiva === c.value ? 'bg-blue-600 text-white' : 'text-mamba-silver hover:text-mamba-white')}>
+              {CONTAS.map(c => (
+                <button key={c.value} onClick={() => setContaAtiva(c.value)}
+                  className={cn('px-3 py-1.5 text-xs font-semibold rounded-md transition-all duration-200 cursor-pointer',
+                    contaAtiva === c.value ? 'bg-blue-600 text-white' : 'text-mamba-silver hover:text-mamba-white')}>
                   {c.label}
                 </button>
               ))}
@@ -163,7 +167,7 @@ export default function AnunciosPage() {
                         </span>
                         <span className="text-[10px] text-mamba-silver/50">{conta.campaigns} campanhas</span>
                       </div>
-                      <div className="grid grid-cols-3 gap-3">
+                      <div className="grid grid-cols-5 gap-3">
                         <div>
                           <p className="text-[10px] text-mamba-silver/50 mb-0.5">Gasto</p>
                           <p className="text-sm font-black tabular-nums text-mamba-white">{formatBRL(conta.spend)}</p>
@@ -176,6 +180,14 @@ export default function AnunciosPage() {
                           <p className="text-[10px] text-mamba-silver/50 mb-0.5">Cliques</p>
                           <p className="text-sm font-black tabular-nums text-mamba-white">{formatNumber(conta.clicks)}</p>
                         </div>
+                        <div>
+                          <p className="text-[10px] text-mamba-silver/50 mb-0.5">Conversões</p>
+                          <p className="text-sm font-black tabular-nums text-green-400">{formatNumber(conta.purchases || 0)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-mamba-silver/50 mb-0.5">Receita</p>
+                          <p className="text-sm font-black tabular-nums text-emerald-400">{formatBRL(conta.purchase_value || 0)}</p>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -183,7 +195,7 @@ export default function AnunciosPage() {
               )}
 
               {/* Métricas consolidadas */}
-              <div className="grid grid-cols-3 xl:grid-cols-6 gap-3">
+              <div className="grid grid-cols-4 xl:grid-cols-8 gap-3">
                 {metricas.map(m => {
                   const Icon = m.icon
                   return (
@@ -192,7 +204,7 @@ export default function AnunciosPage() {
                         <div className={cn('flex items-center justify-center w-7 h-7 rounded-lg', m.bg)}>
                           <Icon className={cn('w-3.5 h-3.5', m.color)} />
                         </div>
-                        <span className="text-[10px] font-bold text-mamba-silver/60 uppercase tracking-wider">{m.label}</span>
+                        <span className="text-[10px] font-bold text-mamba-silver/60 uppercase tracking-wider leading-tight">{m.label}</span>
                       </div>
                       <p className="text-lg font-black text-mamba-white tabular-nums">{m.value}</p>
                     </div>
@@ -227,32 +239,38 @@ export default function AnunciosPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-mamba-border bg-mamba-card">
-                      {['Campanha', 'Conta', 'Gasto', 'Impressões', 'Cliques', 'CPC', 'ROAS'].map(h => (
+                      {['Campanha', 'Conta', 'Gasto', 'Impressões', 'Cliques', 'Conversões', 'Receita', 'CPC', 'ROAS'].map(h => (
                         <th key={h} className="text-left px-4 py-3 text-[11px] font-bold tracking-wider text-mamba-silver uppercase whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {campanhasFiltradas.length === 0 ? (
-                      <tr><td colSpan={7} className="px-4 py-8 text-center text-mamba-silver/40 text-sm">Nenhuma campanha no período</td></tr>
+                      <tr><td colSpan={9} className="px-4 py-8 text-center text-mamba-silver/40 text-sm">Nenhuma campanha no período</td></tr>
                     ) : campanhasFiltradas.map((c: any, i: number) => (
                       <tr key={i} className="border-b border-mamba-border/60 hover:bg-mamba-card/50 transition-colors">
-                        <td className="px-4 py-3 max-w-[220px]">
+                        <td className="px-4 py-3 max-w-[200px]">
                           <p className="text-mamba-white text-xs font-medium truncate">{c.campaign_name}</p>
                         </td>
                         <td className="px-4 py-3">
                           <span className={cn('text-[11px] font-bold px-2 py-0.5 rounded-md',
-                            c.account_id === '1295816082283298' ? 'bg-blue-500/10 text-blue-400' : 'bg-purple-500/10 text-purple-400')}>
+                            c.account_name === 'Mamba 2025' ? 'bg-blue-500/10 text-blue-400' : 'bg-purple-500/10 text-purple-400')}>
                             {c.account_name}
                           </span>
                         </td>
                         <td className="px-4 py-3 font-black tabular-nums text-mamba-white">{formatBRL(c.spend)}</td>
                         <td className="px-4 py-3 tabular-nums text-mamba-silver">{formatNumber(c.impressions)}</td>
                         <td className="px-4 py-3 tabular-nums text-mamba-silver">{formatNumber(c.clicks)}</td>
+                        <td className="px-4 py-3 tabular-nums font-bold text-green-400">
+                          {c.purchases > 0 ? formatNumber(c.purchases) : <span className="text-mamba-silver/30">—</span>}
+                        </td>
+                        <td className="px-4 py-3 tabular-nums font-bold text-emerald-400">
+                          {c.purchase_value > 0 ? formatBRL(c.purchase_value) : <span className="text-mamba-silver/30">—</span>}
+                        </td>
                         <td className="px-4 py-3 tabular-nums text-orange-400 font-semibold">{formatBRL(c.cpc)}</td>
                         <td className="px-4 py-3 tabular-nums font-bold">
                           {c.roas > 0
-                            ? <span className="text-green-400">{c.roas.toFixed(2)}x</span>
+                            ? <span className="text-yellow-400">{c.roas.toFixed(2)}x</span>
                             : <span className="text-mamba-silver/30">—</span>}
                         </td>
                       </tr>
@@ -267,6 +285,8 @@ export default function AnunciosPage() {
                         <td className="px-4 py-3 font-black tabular-nums text-mamba-gold">{formatBRL(totalGasto)}</td>
                         <td className="px-4 py-3 tabular-nums font-bold text-mamba-white">{formatNumber(totalImpressoes)}</td>
                         <td className="px-4 py-3 tabular-nums font-bold text-mamba-white">{formatNumber(totalCliques)}</td>
+                        <td className="px-4 py-3 tabular-nums font-bold text-green-400">{formatNumber(totalPurchases)}</td>
+                        <td className="px-4 py-3 tabular-nums font-bold text-emerald-400">{formatBRL(totalPurchaseValue)}</td>
                         <td className="px-4 py-3 tabular-nums font-bold text-orange-400">{formatBRL(cpcMedio)}</td>
                         <td className="px-4 py-3" />
                       </tr>

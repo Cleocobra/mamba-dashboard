@@ -22,10 +22,18 @@ interface CampaignInsight {
   cpc: number
   cpm: number
   roas: number
+  purchases: number
+  purchase_value: number
+}
+
+function parseAction(arr: any[], type: string): number {
+  if (!Array.isArray(arr)) return 0
+  const found = arr.find((a: any) => a.action_type === type)
+  return found ? parseFloat(found.value || '0') : 0
 }
 
 async function fetchAccountInsights(accountId: string, datePreset: string) {
-  const fields = 'spend,impressions,clicks,cpc,cpm,campaign_name,campaign_id,purchase_roas'
+  const fields = 'spend,impressions,clicks,cpc,cpm,campaign_name,campaign_id,purchase_roas,actions,action_values'
   const url = `https://graph.facebook.com/${API_VER}/act_${accountId}/insights?fields=${fields}&date_preset=${datePreset}&level=campaign&access_token=${TOKEN}`
   const res = await fetch(url, { next: { revalidate: 300 } })
   if (!res.ok) {
@@ -34,17 +42,21 @@ async function fetchAccountInsights(accountId: string, datePreset: string) {
   }
   const data = await res.json()
   return (data.data || []).map((item: any): CampaignInsight => ({
-    campaign_id:   item.campaign_id   || '',
-    campaign_name: item.campaign_name || '—',
-    account_id:    accountId,
-    account_name:  ACCOUNT_NAMES[accountId] || accountId,
-    status:        'ACTIVE',
-    spend:         parseFloat(item.spend       || '0'),
-    impressions:   parseInt(item.impressions   || '0'),
-    clicks:        parseInt(item.clicks        || '0'),
-    cpc:           parseFloat(item.cpc         || '0'),
-    cpm:           parseFloat(item.cpm         || '0'),
-    roas:          item.purchase_roas?.[0]?.value ? parseFloat(item.purchase_roas[0].value) : 0,
+    campaign_id:    item.campaign_id   || '',
+    campaign_name:  item.campaign_name || '—',
+    account_id:     accountId,
+    account_name:   ACCOUNT_NAMES[accountId] || accountId,
+    status:         'ACTIVE',
+    spend:          parseFloat(item.spend       || '0'),
+    impressions:    parseInt(item.impressions   || '0'),
+    clicks:         parseInt(item.clicks        || '0'),
+    cpc:            parseFloat(item.cpc         || '0'),
+    cpm:            parseFloat(item.cpm         || '0'),
+    roas:           item.purchase_roas?.[0]?.value ? parseFloat(item.purchase_roas[0].value) : 0,
+    purchases:      parseAction(item.actions,       'purchase') ||
+                    parseAction(item.actions,       'offsite_conversion.fb_pixel_purchase'),
+    purchase_value: parseAction(item.action_values, 'purchase') ||
+                    parseAction(item.action_values, 'offsite_conversion.fb_pixel_purchase'),
   }))
 }
 
@@ -72,7 +84,6 @@ export async function GET(request: NextRequest) {
   const datePreset = searchParams.get('preset') || 'last_7d'
 
   try {
-    // Busca dados das 2 contas em paralelo
     const [campaigns1, campaigns2, daily1, daily2] = await Promise.all([
       fetchAccountInsights(ACCOUNT1, datePreset),
       fetchAccountInsights(ACCOUNT2, datePreset),
@@ -81,9 +92,9 @@ export async function GET(request: NextRequest) {
     ])
 
     const allCampaigns = [...campaigns1, ...campaigns2]
-      .sort((a, b) => b.spend - a.spend) // ordena por gasto desc
+      .sort((a: CampaignInsight, b: CampaignInsight) => b.spend - a.spend)
 
-    // Consolida gastos diários das 2 contas
+    // Consolida gastos diários
     const dailyMap: Record<string, number> = {}
     for (const d of [...daily1, ...daily2]) {
       dailyMap[d.data] = (dailyMap[d.data] || 0) + d.gasto
@@ -92,43 +103,34 @@ export async function GET(request: NextRequest) {
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([data, gasto]) => ({ data, gasto }))
 
-    // Totais globais
-    const total_spend       = allCampaigns.reduce((s: number, c: CampaignInsight) => s + c.spend, 0)
-    const total_impressions = allCampaigns.reduce((s: number, c: CampaignInsight) => s + c.impressions, 0)
-    const total_clicks      = allCampaigns.reduce((s: number, c: CampaignInsight) => s + c.clicks, 0)
-    const avg_cpc           = total_clicks > 0 ? total_spend / total_clicks : 0
-    const avg_cpm           = total_impressions > 0 ? (total_spend / total_impressions) * 1000 : 0
-    const avg_roas          = allCampaigns.filter((c: CampaignInsight) => c.roas > 0).reduce((s: number, c: CampaignInsight) => s + c.roas, 0) /
-                              (allCampaigns.filter((c: CampaignInsight) => c.roas > 0).length || 1)
-
-    // Totais por conta
+    // Totais por conta — inclui account_name para filtro no front
     const conta1 = {
-      name: ACCOUNT_NAMES[ACCOUNT1],
-      spend:       campaigns1.reduce((s: number, c: CampaignInsight) => s + c.spend, 0),
-      impressions: campaigns1.reduce((s: number, c: CampaignInsight) => s + c.impressions, 0),
-      clicks:      campaigns1.reduce((s: number, c: CampaignInsight) => s + c.clicks, 0),
-      campaigns:   campaigns1.length,
+      account_name: ACCOUNT_NAMES[ACCOUNT1],
+      name:         ACCOUNT_NAMES[ACCOUNT1],
+      spend:        campaigns1.reduce((s: number, c: CampaignInsight) => s + c.spend, 0),
+      impressions:  campaigns1.reduce((s: number, c: CampaignInsight) => s + c.impressions, 0),
+      clicks:       campaigns1.reduce((s: number, c: CampaignInsight) => s + c.clicks, 0),
+      purchases:    campaigns1.reduce((s: number, c: CampaignInsight) => s + c.purchases, 0),
+      purchase_value: campaigns1.reduce((s: number, c: CampaignInsight) => s + c.purchase_value, 0),
+      campaigns:    campaigns1.length,
     }
     const conta2 = {
-      name: ACCOUNT_NAMES[ACCOUNT2],
-      spend:       campaigns2.reduce((s: number, c: CampaignInsight) => s + c.spend, 0),
-      impressions: campaigns2.reduce((s: number, c: CampaignInsight) => s + c.impressions, 0),
-      clicks:      campaigns2.reduce((s: number, c: CampaignInsight) => s + c.clicks, 0),
-      campaigns:   campaigns2.length,
+      account_name: ACCOUNT_NAMES[ACCOUNT2],
+      name:         ACCOUNT_NAMES[ACCOUNT2],
+      spend:        campaigns2.reduce((s: number, c: CampaignInsight) => s + c.spend, 0),
+      impressions:  campaigns2.reduce((s: number, c: CampaignInsight) => s + c.impressions, 0),
+      clicks:       campaigns2.reduce((s: number, c: CampaignInsight) => s + c.clicks, 0),
+      purchases:    campaigns2.reduce((s: number, c: CampaignInsight) => s + c.purchases, 0),
+      purchase_value: campaigns2.reduce((s: number, c: CampaignInsight) => s + c.purchase_value, 0),
+      campaigns:    campaigns2.length,
     }
 
     return NextResponse.json({
       connected: true,
       data: {
-        total_spend,
-        total_impressions,
-        total_clicks,
-        avg_cpc,
-        avg_cpm,
-        avg_roas,
-        campaigns: allCampaigns,
+        campaigns:   allCampaigns,
         daily_spend: daily_combined,
-        contas: [conta1, conta2],
+        contas:      [conta1, conta2],
         date_preset: datePreset,
       },
     })
