@@ -32,10 +32,11 @@ function parseAction(arr: any[], type: string): number {
   return found ? parseFloat(found.value || '0') : 0
 }
 
-async function fetchAccountInsights(accountId: string, datePreset: string) {
+async function fetchAccountInsights(accountId: string, accountName: string, datePreset: string) {
   const fields = 'spend,impressions,clicks,cpc,cpm,campaign_name,campaign_id,purchase_roas,actions,action_values'
-  const url = `https://graph.facebook.com/${API_VER}/act_${accountId}/insights?fields=${fields}&date_preset=${datePreset}&level=campaign&access_token=${TOKEN}`
-  const res = await fetch(url, { next: { revalidate: 300 } })
+  const id = accountId.trim()
+  const url = `https://graph.facebook.com/${API_VER}/act_${id}/insights?fields=${fields}&date_preset=${datePreset}&level=campaign&access_token=${TOKEN}`
+  const res = await fetch(url, { cache: 'no-store' })
   if (!res.ok) {
     const err = await res.json()
     throw new Error(err.error?.message || `Meta API ${res.status}`)
@@ -44,8 +45,8 @@ async function fetchAccountInsights(accountId: string, datePreset: string) {
   return (data.data || []).map((item: any): CampaignInsight => ({
     campaign_id:    item.campaign_id   || '',
     campaign_name:  item.campaign_name || '—',
-    account_id:     accountId,
-    account_name:   ACCOUNT_NAMES[accountId] || accountId,
+    account_id:     id,
+    account_name:   accountName,          // nome explícito, sem lookup por ID
     status:         'ACTIVE',
     spend:          parseFloat(item.spend       || '0'),
     impressions:    parseInt(item.impressions   || '0'),
@@ -66,7 +67,7 @@ async function fetchDailySpend(accountId: string, days: number) {
   const untilStr = new Date().toISOString().split('T')[0]
 
   const url = `https://graph.facebook.com/${API_VER}/act_${accountId}/insights?fields=spend&time_range={"since":"${sinceStr}","until":"${untilStr}"}&time_increment=1&access_token=${TOKEN}`
-  const res = await fetch(url, { next: { revalidate: 300 } })
+  const res = await fetch(url, { cache: 'no-store' })
   if (!res.ok) return []
   const data = await res.json()
   return (data.data || []).map((d: any) => ({
@@ -85,8 +86,8 @@ export async function GET(request: NextRequest) {
 
   try {
     const [campaigns1, campaigns2, daily1, daily2] = await Promise.all([
-      fetchAccountInsights(ACCOUNT1, datePreset),
-      fetchAccountInsights(ACCOUNT2, datePreset),
+      fetchAccountInsights(ACCOUNT1, 'Mamba 2025', datePreset),
+      fetchAccountInsights(ACCOUNT2, 'Mamba Army', datePreset),
       fetchDailySpend(ACCOUNT1, 14),
       fetchDailySpend(ACCOUNT2, 14),
     ])
@@ -105,8 +106,8 @@ export async function GET(request: NextRequest) {
 
     // Totais por conta — inclui account_name para filtro no front
     const conta1 = {
-      account_name: ACCOUNT_NAMES[ACCOUNT1],
-      name:         ACCOUNT_NAMES[ACCOUNT1],
+      account_name: 'Mamba 2025',
+      name:         'Mamba 2025',
       spend:        campaigns1.reduce((s: number, c: CampaignInsight) => s + c.spend, 0),
       impressions:  campaigns1.reduce((s: number, c: CampaignInsight) => s + c.impressions, 0),
       clicks:       campaigns1.reduce((s: number, c: CampaignInsight) => s + c.clicks, 0),
@@ -115,8 +116,8 @@ export async function GET(request: NextRequest) {
       campaigns:    campaigns1.length,
     }
     const conta2 = {
-      account_name: ACCOUNT_NAMES[ACCOUNT2],
-      name:         ACCOUNT_NAMES[ACCOUNT2],
+      account_name: 'Mamba Army',
+      name:         'Mamba Army',
       spend:        campaigns2.reduce((s: number, c: CampaignInsight) => s + c.spend, 0),
       impressions:  campaigns2.reduce((s: number, c: CampaignInsight) => s + c.impressions, 0),
       clicks:       campaigns2.reduce((s: number, c: CampaignInsight) => s + c.clicks, 0),
