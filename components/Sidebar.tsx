@@ -5,9 +5,10 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { useSidebar } from '@/context/SidebarContext'
+import Image from 'next/image'
 import {
   LayoutDashboard, ShoppingBag, Megaphone,
-  TrendingUp, Settings, ChevronRight, Crosshair, LogOut, X,
+  TrendingUp, Settings, ChevronRight, LogOut, X,
 } from 'lucide-react'
 import type { UserPayload } from '@/lib/auth'
 
@@ -71,16 +72,17 @@ export default function Sidebar() {
       )}>
 
         {/* Logo */}
-        <div className="flex items-center gap-3 px-6 py-5 border-b border-mamba-border">
-          <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-mamba-gold">
-            <Crosshair className="w-5 h-5 text-mamba-black" strokeWidth={2.5} />
-          </div>
-          <div>
-            <p className="text-sm font-black tracking-widest text-mamba-gold uppercase leading-none">MAMBA</p>
-            <p className="text-[10px] tracking-[0.3em] text-mamba-silver uppercase leading-none mt-0.5">ARMY</p>
-          </div>
-          <div className="ml-auto flex items-center gap-2">
-            <span className="text-[10px] bg-mamba-gold/10 text-mamba-gold border border-mamba-gold/20 px-2 py-0.5 rounded font-mono font-bold tracking-wider">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-mamba-border">
+          <Image
+            src="/logo-mamba.svg"
+            alt="Mamba Army"
+            width={148}
+            height={34}
+            priority
+            className="object-contain"
+          />
+          <div className="flex items-center gap-2 ml-2">
+            <span className="text-[10px] bg-mamba-gold/10 text-mamba-gold border border-mamba-gold/20 px-2 py-0.5 rounded font-mono font-bold tracking-wider flex-shrink-0">
               OPS
             </span>
             {/* Botão fechar no mobile */}

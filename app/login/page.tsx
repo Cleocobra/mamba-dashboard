@@ -2,7 +2,8 @@
 
 import { useState, FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
-import { Crosshair, Eye, EyeOff, Lock, User } from 'lucide-react'
+import Image from 'next/image'
+import { Eye, EyeOff, Lock, User } from 'lucide-react'
 
 export default function LoginPage() {
   const [username,  setUsername]  = useState('')
@@ -49,12 +50,15 @@ export default function LoginPage() {
 
           {/* Logo */}
           <div className="flex flex-col items-center mb-8">
-            <div className="w-14 h-14 bg-mamba-gold rounded-xl flex items-center justify-center mb-4 shadow-gold-glow">
-              <Crosshair className="w-7 h-7 text-mamba-black" strokeWidth={2.5} />
-            </div>
-            <p className="text-xl font-black tracking-[0.3em] text-mamba-gold uppercase leading-none">MAMBA</p>
-            <p className="text-xs tracking-[0.5em] text-mamba-silver/60 uppercase mt-1">ARMY</p>
-            <p className="text-xs text-mamba-silver/40 mt-3">Painel Operacional</p>
+            <Image
+              src="/logo-mamba.svg"
+              alt="Mamba Army"
+              width={220}
+              height={50}
+              priority
+              className="object-contain mb-4"
+            />
+            <p className="text-xs text-mamba-silver/40 tracking-widest">Painel Operacional</p>
           </div>
 
           {/* Form */}

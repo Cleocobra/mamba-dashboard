@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 540 110" fill="none">
+  <!-- Shield icon -->
+  <g>
+    <!-- Pentagon / shield outline -->
+    <path d="M10 8 L10 65 C10 88 34 102 55 110 C76 102 100 88 100 65 L100 8 Z" fill="#FFE600"/>
+    <!-- Inner symbol: M with downward notch (sniper/crosshair style) -->
+    <path d="M26 28 L40 52 L55 38 L70 52 L84 28" stroke="#000" stroke-width="9" stroke-linejoin="round" stroke-linecap="round" fill="none"/>
+    <path d="M55 52 L55 76" stroke="#000" stroke-width="9" stroke-linecap="round"/>
+    <path d="M43 76 L55 92 L67 76" fill="#000"/>
+  </g>
+
+  <!-- MAMBA text -->
+  <text
+    x="116"
+    y="88"
+    font-family="'Arial Black', Arial, sans-serif"
+    font-weight="900"
+    font-size="88"
+    fill="#FFE600"
+    letter-spacing="-3"
+  >MAMBA</text>
+
+  <!-- ARMY text rotated on the right -->
+  <g transform="translate(524, 10) rotate(90)">
+    <text
+      x="0"
+      y="0"
+      font-family="'Arial Black', Arial, sans-serif"
+      font-weight="900"
+      font-size="18"
+      fill="#FFE600"
+      letter-spacing="5"
+    >ARMY</text>
+  </g>
+</svg>
