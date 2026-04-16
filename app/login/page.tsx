@@ -51,7 +51,7 @@ export default function LoginPage() {
           {/* Logo */}
           <div className="flex flex-col items-center mb-8">
             <Image
-              src="/logo-mamba.svg"
+              src="/logo-mamba.png"
               alt="Mamba Army"
               width={220}
               height={50}

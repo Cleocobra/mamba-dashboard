@@ -74,7 +74,7 @@ export default function Sidebar() {
         {/* Logo */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-mamba-border">
           <Image
-            src="/logo-mamba.svg"
+            src="/logo-mamba.png"
             alt="Mamba Army"
             width={148}
             height={34}
