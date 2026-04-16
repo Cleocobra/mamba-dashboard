@@ -1,0 +1,118 @@
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&family=Roboto+Mono:wght@400;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --gold: #FFCC00;
+  --gold-dim: #CCA300;
+  --black: #0A0A0A;
+  --dark: #111111;
+  --card: #1A1A1A;
+  --border: #2A2A2A;
+  --silver: #BCBCBC;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: #0A0A0A;
+  color: #F5F5F5;
+  font-family: 'Roboto', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #111111;
+}
+::-webkit-scrollbar-thumb {
+  background: #2A2A2A;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #FFCC00;
+}
+
+/* Gold text selection */
+::selection {
+  background: rgba(255, 204, 0, 0.25);
+  color: #FFCC00;
+}
+
+/* Animations */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.4s ease-out both;
+}
+
+.animate-delay-1 { animation-delay: 0.05s; }
+.animate-delay-2 { animation-delay: 0.10s; }
+.animate-delay-3 { animation-delay: 0.15s; }
+.animate-delay-4 { animation-delay: 0.20s; }
+.animate-delay-5 { animation-delay: 0.25s; }
+
+/* Skeleton loader */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    #1A1A1A 25%,
+    #2A2A2A 50%,
+    #1A1A1A 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 6px;
+}
+
+/* Gold border glow on focus */
+.input-mamba {
+  background: #111111;
+  border: 1px solid #2A2A2A;
+  color: #F5F5F5;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.input-mamba:focus {
+  outline: none;
+  border-color: #FFCC00;
+  box-shadow: 0 0 0 2px rgba(255, 204, 0, 0.15);
+}
+
+/* Card hover */
+.card-hover {
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+}
+.card-hover:hover {
+  border-color: rgba(255, 204, 0, 0.25);
+  box-shadow: 0 0 24px rgba(255, 204, 0, 0.08);
+  transform: translateY(-1px);
+}
+
+/* Status dot */
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
