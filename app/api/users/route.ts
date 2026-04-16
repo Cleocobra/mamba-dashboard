@@ -12,7 +12,7 @@ async function requireAdmin(req: NextRequest) {
 export async function GET(req: NextRequest) {
   if (!(await requireAdmin(req)))
     return NextResponse.json({ error: 'Não autorizado' }, { status: 403 })
-  return NextResponse.json({ users: getAllUsers() })
+  return NextResponse.json({ users: await getAllUsers() })
 }
 
 export async function POST(req: NextRequest) {

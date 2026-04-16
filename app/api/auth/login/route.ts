@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
   if (!username || !password)
     return NextResponse.json({ error: 'Usuário e senha são obrigatórios' }, { status: 400 })
 
-  const user = getUserByUsername(username)
+  const user = await getUserByUsername(username)
   if (!user || !(await verifyPassword(user, password)))
     return NextResponse.json({ error: 'Usuário ou senha incorretos' }, { status: 401 })
 
