@@ -93,27 +93,27 @@ export async function GET(request: NextRequest) {
       .map(([data, gasto]) => ({ data, gasto }))
 
     // Totais globais
-    const total_spend       = allCampaigns.reduce((s, c) => s + c.spend, 0)
-    const total_impressions = allCampaigns.reduce((s, c) => s + c.impressions, 0)
-    const total_clicks      = allCampaigns.reduce((s, c) => s + c.clicks, 0)
+    const total_spend       = allCampaigns.reduce((s: number, c: CampaignInsight) => s + c.spend, 0)
+    const total_impressions = allCampaigns.reduce((s: number, c: CampaignInsight) => s + c.impressions, 0)
+    const total_clicks      = allCampaigns.reduce((s: number, c: CampaignInsight) => s + c.clicks, 0)
     const avg_cpc           = total_clicks > 0 ? total_spend / total_clicks : 0
     const avg_cpm           = total_impressions > 0 ? (total_spend / total_impressions) * 1000 : 0
-    const avg_roas          = allCampaigns.filter(c => c.roas > 0).reduce((s, c) => s + c.roas, 0) /
-                              (allCampaigns.filter(c => c.roas > 0).length || 1)
+    const avg_roas          = allCampaigns.filter((c: CampaignInsight) => c.roas > 0).reduce((s: number, c: CampaignInsight) => s + c.roas, 0) /
+                              (allCampaigns.filter((c: CampaignInsight) => c.roas > 0).length || 1)
 
     // Totais por conta
     const conta1 = {
       name: ACCOUNT_NAMES[ACCOUNT1],
-      spend:       campaigns1.reduce((s, c) => s + c.spend, 0),
-      impressions: campaigns1.reduce((s, c) => s + c.impressions, 0),
-      clicks:      campaigns1.reduce((s, c) => s + c.clicks, 0),
+      spend:       campaigns1.reduce((s: number, c: CampaignInsight) => s + c.spend, 0),
+      impressions: campaigns1.reduce((s: number, c: CampaignInsight) => s + c.impressions, 0),
+      clicks:      campaigns1.reduce((s: number, c: CampaignInsight) => s + c.clicks, 0),
       campaigns:   campaigns1.length,
     }
     const conta2 = {
       name: ACCOUNT_NAMES[ACCOUNT2],
-      spend:       campaigns2.reduce((s, c) => s + c.spend, 0),
-      impressions: campaigns2.reduce((s, c) => s + c.impressions, 0),
-      clicks:      campaigns2.reduce((s, c) => s + c.clicks, 0),
+      spend:       campaigns2.reduce((s: number, c: CampaignInsight) => s + c.spend, 0),
+      impressions: campaigns2.reduce((s: number, c: CampaignInsight) => s + c.impressions, 0),
+      clicks:      campaigns2.reduce((s: number, c: CampaignInsight) => s + c.clicks, 0),
       campaigns:   campaigns2.length,
     }
 
