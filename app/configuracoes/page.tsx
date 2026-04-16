@@ -78,7 +78,7 @@ function UserForm({
         {initial ? 'Editar Usuário' : 'Novo Usuário'}
       </p>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div>
           <label className="block text-[10px] font-bold text-mamba-silver/60 uppercase tracking-wider mb-1">Usuário</label>
           <input value={username} onChange={e => setUsername(e.target.value)}
@@ -96,7 +96,7 @@ function UserForm({
 
       <div>
         <label className="block text-[10px] font-bold text-mamba-silver/60 uppercase tracking-wider mb-2">Permissões de Acesso</label>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
           {PERMS.map(p => (
             <PermCheckbox key={p.key} perm={p.key}
               checked={perms.includes(p.key)}
@@ -209,10 +209,10 @@ export default function ConfiguracoesPage() {
   return (
     <div className="flex h-screen bg-mamba-black overflow-hidden">
       <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden ml-64">
+      <div className="flex-1 flex flex-col overflow-hidden md:ml-64">
         <Header title="Configurações" subtitle="Usuários e integrações" />
 
-        <main className="flex-1 overflow-y-auto px-6 py-6 space-y-6 max-w-4xl">
+        <main className="flex-1 overflow-y-auto px-4 py-4 md:px-6 md:py-6 space-y-6 max-w-4xl">
 
           {/* Feedback toast */}
           {feedback && (

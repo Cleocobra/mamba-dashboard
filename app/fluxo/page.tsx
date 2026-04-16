@@ -146,13 +146,13 @@ export default function FluxoPage() {
   return (
     <div className="flex h-screen bg-mamba-black overflow-hidden">
       <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden ml-64">
+      <div className="flex-1 flex flex-col overflow-hidden md:ml-64">
         <Header title="Fluxo de Caixa" subtitle="Controle manual de entradas e saídas" />
 
-        <main className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+        <main className="flex-1 overflow-y-auto px-4 py-4 md:px-6 md:py-6 space-y-6">
 
           {/* ── Métricas ────────────────────────────────────── */}
-          <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
 
             {/* Saldo Inicial — editável */}
             <div className="rounded-xl border border-mamba-border bg-mamba-card p-5 card-hover animate-fade-in-up">
@@ -317,7 +317,7 @@ export default function FluxoPage() {
                 </div>
 
                 {/* Campos */}
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="col-span-2 sm:col-span-1">
                     <label className="text-[11px] font-semibold text-mamba-silver uppercase tracking-wider block mb-1">Descrição *</label>
                     <input type="text" placeholder={form.tipo === 'entrada' ? 'Ex: Venda à vista' : 'Ex: Fornecedor XYZ'}

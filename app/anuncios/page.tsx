@@ -109,7 +109,7 @@ export default function AnunciosPage() {
   return (
     <div className="flex h-screen bg-mamba-black overflow-hidden">
       <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden ml-64">
+      <div className="flex-1 flex flex-col overflow-hidden md:ml-64">
         <Header
           title="Meta Ads"
           subtitle={connected ? 'Mamba 2025 + Mamba Army — dados em tempo real' : 'Carregando...'}
@@ -117,7 +117,7 @@ export default function AnunciosPage() {
           isRefreshing={isRefreshing}
         />
 
-        <main className="flex-1 overflow-y-auto px-6 py-6 space-y-5">
+        <main className="flex-1 overflow-y-auto px-4 py-4 md:px-6 md:py-6 space-y-5">
 
           {/* Período + Conta */}
           <div className="flex flex-wrap items-center gap-3">
@@ -158,7 +158,7 @@ export default function AnunciosPage() {
             <>
               {/* Cards por conta */}
               {data?.contas && (
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {data.contas.map((conta: any, i: number) => (
                     <div key={i} className={cn('p-4 rounded-xl border bg-mamba-card', i === 0 ? 'border-blue-500/20' : 'border-purple-500/20')}>
                       <div className="flex items-center justify-between mb-3">
@@ -167,7 +167,7 @@ export default function AnunciosPage() {
                         </span>
                         <span className="text-[10px] text-mamba-silver/50">{conta.campaigns} campanhas</span>
                       </div>
-                      <div className="grid grid-cols-5 gap-3">
+                      <div className="grid grid-cols-3 md:grid-cols-5 gap-3">
                         <div>
                           <p className="text-[10px] text-mamba-silver/50 mb-0.5">Gasto</p>
                           <p className="text-sm font-black tabular-nums text-mamba-white">{formatBRL(conta.spend)}</p>
@@ -195,7 +195,7 @@ export default function AnunciosPage() {
               )}
 
               {/* Métricas consolidadas */}
-              <div className="grid grid-cols-4 xl:grid-cols-8 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
                 {metricas.map(m => {
                   const Icon = m.icon
                   return (

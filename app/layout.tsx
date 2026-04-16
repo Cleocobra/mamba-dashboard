@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import { SidebarProvider } from '@/context/SidebarContext'
 
 export const metadata: Metadata = {
   title: 'Mamba Army | Dashboard',
@@ -17,7 +18,7 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" className="dark">
       <body className="bg-mamba-black min-h-screen font-sans antialiased">
-        {children}
+        <SidebarProvider>{children}</SidebarProvider>
       </body>
     </html>
   )

@@ -65,10 +65,10 @@ export default function DashboardPage() {
   return (
     <div className="flex h-screen bg-mamba-black overflow-hidden">
       <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden ml-64">
+      <div className="flex-1 flex flex-col overflow-hidden md:ml-64">
         <Header title="Dashboard Operacional" onRefresh={handleRefresh} isRefreshing={isRefreshing} />
 
-        <main className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+        <main className="flex-1 overflow-y-auto px-4 py-4 md:px-6 md:py-6 space-y-6">
           {error && (
             <div className="flex items-center gap-3 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
               <Activity className="w-4 h-4 flex-shrink-0" />
@@ -164,7 +164,9 @@ export default function DashboardPage() {
                 Ver todos <ArrowUpRight className="w-3.5 h-3.5" />
               </a>
             </div>
-            <OrdersTable pedidos={pedidosHoje} isLoading={isLoading} />
+            <div className="overflow-x-auto">
+              <OrdersTable pedidos={pedidosHoje} isLoading={isLoading} />
+            </div>
           </div>
         </main>
       </div>

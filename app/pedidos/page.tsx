@@ -74,7 +74,7 @@ export default function PedidosPage() {
   return (
     <div className="flex h-screen bg-mamba-black overflow-hidden">
       <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden ml-64">
+      <div className="flex-1 flex flex-col overflow-hidden md:ml-64">
         <Header
           title="Pedidos"
           subtitle={`${meta.total_pedidos} pedidos • ${formatBRL(meta.total_valor)} em vendas`}
@@ -82,9 +82,9 @@ export default function PedidosPage() {
           isRefreshing={isRefreshing}
         />
 
-        <main className="flex-1 overflow-y-auto px-6 py-6 space-y-5">
+        <main className="flex-1 overflow-y-auto px-4 py-4 md:px-6 md:py-6 space-y-5">
           {/* Metrics */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <MetricCard label="Total de Pedidos" value={meta.total_pedidos} icon={ShoppingBag} accentColor="gold" />
             <MetricCard label="Receita Total"    value={meta.total_valor}   isCurrency icon={DollarSign} accentColor="green" />
             <MetricCard label="Ticket Médio"     value={ticketMedio}        isCurrency icon={TrendingUp} accentColor="blue" />
@@ -143,7 +143,9 @@ export default function PedidosPage() {
           )}
 
           <div className="rounded-xl border border-mamba-border bg-mamba-card p-5">
-            <OrdersTable pedidos={filtrados} isLoading={isLoading} />
+            <div className="overflow-x-auto">
+              <OrdersTable pedidos={filtrados} isLoading={isLoading} />
+            </div>
           </div>
         </main>
       </div>
