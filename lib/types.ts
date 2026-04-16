@@ -6,7 +6,7 @@ export interface Pedido {
   status: string
   status_pagamento: string
   valor_total: string
-  produtos: ProdutoPedido[]
+  produtos?: ProdutoPedido[]
 }
 
 export interface ProdutoPedido {
