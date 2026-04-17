@@ -102,64 +102,64 @@ function MetricCard({
   )
 }
 
-// ── Modal Resumo de Produção ───────────────────────────────────────────────
-function ModalResumo({
-  produtos,
-  onClose,
+// ── Bloco cor → tamanhos (reutilizado nos dois modais) ────────────────────
+function BlocoCor({
+  cor, tamanhos, barColor, idx,
 }: {
-  produtos: ProdutoItem[]
-  onClose: () => void
+  cor: string; tamanhos: Record<string, number>; barColor: string; idx: number
 }) {
-  // Agrupa por nome-produto → cor → tamanho
-  type GrupoCor = { [tamanho: string]: number }
-  type GrupoProduto = { [cor: string]: GrupoCor }
-  type Grupos = { [nome: string]: GrupoProduto }
-
-  const grupos: Grupos = {}
-  let totalGeral = 0
-
-  for (const p of produtos) {
-    const nome = p.nome || 'Produto'
-    const cor  = p.cor  !== '—' ? p.cor  : 'Sem cor'
-    const tam  = p.tamanho !== '—' ? p.tamanho : 'Único'
-    const qtd  = p.quantidade
-
-    if (!grupos[nome])       grupos[nome] = {}
-    if (!grupos[nome][cor])  grupos[nome][cor] = {}
-    grupos[nome][cor][tam] = (grupos[nome][cor][tam] || 0) + qtd
-    totalGeral += qtd
-  }
-
-  // Ordena produtos por total decrescente
-  const produtosOrdenados = Object.entries(grupos).sort((a, b) => {
-    const totalA = Object.values(a[1]).flatMap(c => Object.values(c)).reduce((s, v) => s + v, 0)
-    const totalB = Object.values(b[1]).flatMap(c => Object.values(c)).reduce((s, v) => s + v, 0)
-    return totalB - totalA
-  })
-
-  // Paleta de cores para barras
-  const barColors = [
-    'bg-mamba-gold',
-    'bg-blue-400',
-    'bg-purple-400',
-    'bg-green-400',
-    'bg-orange-400',
-    'bg-pink-400',
-    'bg-cyan-400',
-    'bg-red-400',
-  ]
+  const totalCor     = Object.values(tamanhos).reduce((s, v) => s + v, 0)
+  const tamOrdenados = Object.entries(tamanhos).sort((a, b) => sortSize(a[0], b[0]))
+  const maxQtd       = Math.max(...Object.values(tamanhos))
 
   return (
+    <div className="bg-mamba-black/40 border border-mamba-border/60 rounded-xl p-3 space-y-2.5">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <Palette className="w-3 h-3 text-purple-400" />
+          <span className="text-xs font-semibold text-mamba-white">{cor}</span>
+        </div>
+        <span className="text-[11px] text-mamba-silver/50">{fmtQtd(totalCor)} un. total</span>
+      </div>
+      <div className="space-y-1.5">
+        {tamOrdenados.map(([tam, qtd]) => {
+          const pct = maxQtd > 0 ? (qtd / maxQtd) * 100 : 0
+          return (
+            <div key={tam} className="flex items-center gap-2.5">
+              <span className="w-10 text-[11px] font-bold text-mamba-silver/70 text-right flex-shrink-0">{tam}</span>
+              <div className="flex-1 h-5 bg-mamba-border/50 rounded-md overflow-hidden">
+                <div
+                  className={cn('h-full rounded-md transition-all duration-500', barColor, 'opacity-80')}
+                  style={{ width: `${Math.max(pct, 6)}%` }}
+                />
+              </div>
+              <span className="w-16 text-xs font-black text-mamba-white text-right flex-shrink-0">
+                {fmtQtd(qtd)} un.
+              </span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+const BAR_COLORS = [
+  'bg-mamba-gold', 'bg-blue-400', 'bg-purple-400', 'bg-green-400',
+  'bg-orange-400', 'bg-pink-400', 'bg-cyan-400',   'bg-red-400',
+]
+
+// ── Modal base ─────────────────────────────────────────────────────────────
+function ModalBase({
+  titulo, subtitulo, total, onClose, children,
+}: {
+  titulo: string; subtitulo?: string; total: number
+  onClose: () => void; children: React.ReactNode
+}) {
+  return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-        onClick={onClose}
-      />
-
-      {/* Modal */}
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
       <div className="relative w-full sm:max-w-2xl max-h-[90vh] bg-mamba-dark border border-mamba-border rounded-t-2xl sm:rounded-2xl flex flex-col shadow-2xl overflow-hidden">
-
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-mamba-border flex-shrink-0">
           <div className="flex items-center gap-2.5">
@@ -167,114 +167,113 @@ function ModalResumo({
               <BarChart2 className="w-4 h-4 text-mamba-gold" />
             </div>
             <div>
-              <h2 className="text-sm font-black text-mamba-white">Resumo de Produção</h2>
-              <p className="text-[10px] text-mamba-silver/50">
-                {fmtQtd(totalGeral)} unidades no período
-              </p>
+              <h2 className="text-sm font-black text-mamba-white">{titulo}</h2>
+              <p className="text-[10px] text-mamba-silver/50">{subtitulo ?? `${fmtQtd(total)} unidades no período`}</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-lg text-mamba-silver/40 hover:text-mamba-white hover:bg-mamba-border transition-all cursor-pointer"
-          >
+          <button onClick={onClose} className="p-2 rounded-lg text-mamba-silver/40 hover:text-mamba-white hover:bg-mamba-border transition-all cursor-pointer">
             <X className="w-4 h-4" />
           </button>
         </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-6">
-          {produtosOrdenados.length === 0 ? (
-            <div className="text-center py-12">
-              <Package className="w-10 h-10 text-mamba-silver/20 mx-auto mb-3" />
-              <p className="text-sm text-mamba-silver/40">Nenhum produto no período</p>
-            </div>
-          ) : (
-            produtosOrdenados.map(([nome, cores], pi) => {
-              const totalProd = Object.values(cores)
-                .flatMap(c => Object.values(c))
-                .reduce((s, v) => s + v, 0)
-
-              const coresOrdenadas = Object.entries(cores).sort((a, b) => {
-                const tA = Object.values(a[1]).reduce((s, v) => s + v, 0)
-                const tB = Object.values(b[1]).reduce((s, v) => s + v, 0)
-                return tB - tA
-              })
-
-              return (
-                <div key={nome} className="space-y-3">
-                  {/* Nome do produto */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className={cn('w-2.5 h-2.5 rounded-full flex-shrink-0', barColors[pi % barColors.length])} />
-                      <h3 className="text-sm font-bold text-mamba-white leading-snug">{nome}</h3>
-                    </div>
-                    <span className="text-xs font-black text-mamba-gold bg-mamba-gold/10 border border-mamba-gold/20 px-2.5 py-0.5 rounded-lg">
-                      {fmtQtd(totalProd)} un.
-                    </span>
-                  </div>
-
-                  {/* Cores */}
-                  <div className="space-y-2 pl-4 border-l-2 border-mamba-border ml-1">
-                    {coresOrdenadas.map(([cor, tamanhos]) => {
-                      const totalCor = Object.values(tamanhos).reduce((s, v) => s + v, 0)
-                      const tamOrdenados = Object.entries(tamanhos).sort((a, b) => sortSize(a[0], b[0]))
-                      const maxQtd = Math.max(...Object.values(tamanhos))
-
-                      return (
-                        <div key={cor} className="bg-mamba-black/40 border border-mamba-border/60 rounded-xl p-3 space-y-2.5">
-                          {/* Cor header */}
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-1.5">
-                              <Palette className="w-3 h-3 text-purple-400" />
-                              <span className="text-xs font-semibold text-mamba-white">{cor}</span>
-                            </div>
-                            <span className="text-[11px] text-mamba-silver/50">
-                              {fmtQtd(totalCor)} un. total
-                            </span>
-                          </div>
-
-                          {/* Tamanhos com barra */}
-                          <div className="space-y-1.5">
-                            {tamOrdenados.map(([tam, qtd]) => {
-                              const pct = maxQtd > 0 ? (qtd / maxQtd) * 100 : 0
-                              return (
-                                <div key={tam} className="flex items-center gap-2.5">
-                                  {/* Tamanho label */}
-                                  <span className="w-10 text-[11px] font-bold text-mamba-silver/70 text-right flex-shrink-0">
-                                    {tam}
-                                  </span>
-                                  {/* Barra */}
-                                  <div className="flex-1 h-5 bg-mamba-border/50 rounded-md overflow-hidden">
-                                    <div
-                                      className={cn('h-full rounded-md transition-all duration-500 flex items-center justify-end pr-2', barColors[pi % barColors.length], 'opacity-80')}
-                                      style={{ width: `${Math.max(pct, 8)}%` }}
-                                    />
-                                  </div>
-                                  {/* Quantidade */}
-                                  <span className="w-16 text-xs font-black text-mamba-white text-right flex-shrink-0">
-                                    {fmtQtd(qtd)} un.
-                                  </span>
-                                </div>
-                              )
-                            })}
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              )
-            })
-          )}
-        </div>
-
-        {/* Footer total */}
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">{children}</div>
+        {/* Footer */}
         <div className="flex items-center justify-between px-5 py-3 border-t border-mamba-border bg-mamba-black/30 flex-shrink-0">
           <span className="text-xs text-mamba-silver/50 uppercase tracking-wider font-bold">Total Geral</span>
-          <span className="text-base font-black text-mamba-gold">{fmtQtd(totalGeral)} unidades</span>
+          <span className="text-base font-black text-mamba-gold">{fmtQtd(total)} unidades</span>
         </div>
       </div>
     </div>
+  )
+}
+
+// ── Modal 1: agrupado por produto → cor → tamanho ─────────────────────────
+function ModalResumoPorProduto({ produtos, onClose }: { produtos: ProdutoItem[]; onClose: () => void }) {
+  type GrupoCor     = Record<string, number>
+  type GrupoProduto = Record<string, GrupoCor>
+  type Grupos       = Record<string, GrupoProduto>
+
+  const grupos: Grupos = {}
+  let totalGeral = 0
+
+  for (const p of produtos) {
+    const nome = p.nome     || 'Produto'
+    const cor  = p.cor      !== '—' ? p.cor      : 'Sem cor'
+    const tam  = p.tamanho  !== '—' ? p.tamanho  : 'Único'
+    if (!grupos[nome])      grupos[nome] = {}
+    if (!grupos[nome][cor]) grupos[nome][cor] = {}
+    grupos[nome][cor][tam] = (grupos[nome][cor][tam] || 0) + p.quantidade
+    totalGeral += p.quantidade
+  }
+
+  const produtosOrdenados = Object.entries(grupos).sort((a, b) => {
+    const tA = Object.values(a[1]).flatMap(c => Object.values(c)).reduce((s, v) => s + v, 0)
+    const tB = Object.values(b[1]).flatMap(c => Object.values(c)).reduce((s, v) => s + v, 0)
+    return tB - tA
+  })
+
+  return (
+    <ModalBase titulo="Resumo de Produção" total={totalGeral} onClose={onClose}>
+      {produtosOrdenados.length === 0 ? (
+        <div className="text-center py-12">
+          <Package className="w-10 h-10 text-mamba-silver/20 mx-auto mb-3" />
+          <p className="text-sm text-mamba-silver/40">Nenhum produto no período</p>
+        </div>
+      ) : produtosOrdenados.map(([nome, cores], pi) => {
+        const totalProd = Object.values(cores).flatMap(c => Object.values(c)).reduce((s, v) => s + v, 0)
+        const coresOrdenadas = Object.entries(cores).sort((a, b) =>
+          Object.values(b[1]).reduce((s, v) => s + v, 0) - Object.values(a[1]).reduce((s, v) => s + v, 0)
+        )
+        return (
+          <div key={nome} className="space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className={cn('w-2.5 h-2.5 rounded-full flex-shrink-0', BAR_COLORS[pi % BAR_COLORS.length])} />
+                <h3 className="text-sm font-bold text-mamba-white leading-snug">{nome}</h3>
+              </div>
+              <span className="text-xs font-black text-mamba-gold bg-mamba-gold/10 border border-mamba-gold/20 px-2.5 py-0.5 rounded-lg">{fmtQtd(totalProd)} un.</span>
+            </div>
+            <div className="space-y-2 pl-4 border-l-2 border-mamba-border ml-1">
+              {coresOrdenadas.map(([cor, tamanhos], ci) => (
+                <BlocoCor key={cor} cor={cor} tamanhos={tamanhos} barColor={BAR_COLORS[pi % BAR_COLORS.length]} idx={ci} />
+              ))}
+            </div>
+          </div>
+        )
+      })}
+    </ModalBase>
+  )
+}
+
+// ── Modal 2: agrupado APENAS por cor → tamanho (sem nome do produto) ───────
+function ModalResumoAgrupado({ produtos, onClose }: { produtos: ProdutoItem[]; onClose: () => void }) {
+  type GrupoCor = Record<string, number>
+  const grupos: Record<string, GrupoCor> = {}
+  let totalGeral = 0
+
+  for (const p of produtos) {
+    const cor = p.cor     !== '—' ? p.cor     : 'Sem cor'
+    const tam = p.tamanho !== '—' ? p.tamanho : 'Único'
+    if (!grupos[cor]) grupos[cor] = {}
+    grupos[cor][tam] = (grupos[cor][tam] || 0) + p.quantidade
+    totalGeral += p.quantidade
+  }
+
+  const coresOrdenadas = Object.entries(grupos).sort((a, b) =>
+    Object.values(b[1]).reduce((s, v) => s + v, 0) - Object.values(a[1]).reduce((s, v) => s + v, 0)
+  )
+
+  return (
+    <ModalBase titulo="Total por Cor e Tamanho" subtitulo="Todas as camisetas agrupadas" total={totalGeral} onClose={onClose}>
+      {coresOrdenadas.length === 0 ? (
+        <div className="text-center py-12">
+          <Package className="w-10 h-10 text-mamba-silver/20 mx-auto mb-3" />
+          <p className="text-sm text-mamba-silver/40">Nenhum produto no período</p>
+        </div>
+      ) : coresOrdenadas.map(([cor, tamanhos], i) => (
+        <BlocoCor key={cor} cor={cor} tamanhos={tamanhos} barColor={BAR_COLORS[i % BAR_COLORS.length]} idx={i} />
+      ))}
+    </ModalBase>
   )
 }
 
@@ -290,7 +289,8 @@ export default function ProdutosPage() {
   const [busca,      setBusca]      = useState('')
   const [sortKey,    setSortKey]    = useState<SortKey>('quantidade')
   const [sortDir,    setSortDir]    = useState<SortDir>('desc')
-  const [showModal,  setShowModal]  = useState(false)
+  const [showModal,       setShowModal]       = useState(false)
+  const [showModalAgrup,  setShowModalAgrup]  = useState(false)
   const abortRef = useRef<AbortController | null>(null)
 
   const fetchProdutos = useCallback(async (p: Periodo, di: string, df: string) => {
@@ -319,7 +319,9 @@ export default function ProdutosPage() {
 
   // Close modal on ESC
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowModal(false) }
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { setShowModal(false); setShowModalAgrup(false) }
+    }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [])
@@ -423,7 +425,7 @@ export default function ProdutosPage() {
               sub={loading ? '' : `${meta?.pedidos_analisados ?? 0} pedidos`}
               color="gold"
               loading={loading}
-              onClick={!loading && totalUnidades > 0 ? () => setShowModal(true) : undefined}
+              onClick={!loading && totalUnidades > 0 ? () => setShowModalAgrup(true) : undefined}
             />
             <MetricCard
               icon={Tag}
@@ -450,16 +452,39 @@ export default function ProdutosPage() {
             />
           </div>
 
-          {/* Botão Resumo de Produção */}
+          {/* Botões Resumo */}
           {!loading && totalUnidades > 0 && (
-            <button
-              onClick={() => setShowModal(true)}
-              className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-mamba-card border border-mamba-gold/30 hover:border-mamba-gold hover:bg-mamba-gold/5 rounded-xl text-sm font-bold text-mamba-gold transition-all duration-200 cursor-pointer group"
-            >
-              <BarChart2 className="w-4 h-4 group-hover:scale-110 transition-transform" />
-              Ver Resumo de Produção por Cor e Tamanho
-              <ChevronDown className="w-3.5 h-3.5 ml-auto opacity-60" />
-            </button>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Botão 1: por produto */}
+              <button
+                onClick={() => setShowModal(true)}
+                className="flex items-center gap-3 py-3 px-4 bg-mamba-card border border-mamba-gold/30 hover:border-mamba-gold hover:bg-mamba-gold/5 rounded-xl text-sm font-bold text-mamba-gold transition-all duration-200 cursor-pointer group"
+              >
+                <div className="w-8 h-8 rounded-lg bg-mamba-gold/10 border border-mamba-gold/20 flex items-center justify-center flex-shrink-0 group-hover:bg-mamba-gold/20 transition-colors">
+                  <BarChart2 className="w-4 h-4" />
+                </div>
+                <div className="text-left min-w-0">
+                  <p className="text-xs font-black">Por Produto</p>
+                  <p className="text-[10px] text-mamba-gold/60 font-normal">Agrupado por modelo</p>
+                </div>
+                <ChevronDown className="w-3.5 h-3.5 ml-auto opacity-50 flex-shrink-0" />
+              </button>
+
+              {/* Botão 2: total agrupado (sem nome do produto) */}
+              <button
+                onClick={() => setShowModalAgrup(true)}
+                className="flex items-center gap-3 py-3 px-4 bg-mamba-card border border-purple-400/30 hover:border-purple-400 hover:bg-purple-400/5 rounded-xl text-sm font-bold text-purple-300 transition-all duration-200 cursor-pointer group"
+              >
+                <div className="w-8 h-8 rounded-lg bg-purple-400/10 border border-purple-400/20 flex items-center justify-center flex-shrink-0 group-hover:bg-purple-400/20 transition-colors">
+                  <Palette className="w-4 h-4" />
+                </div>
+                <div className="text-left min-w-0">
+                  <p className="text-xs font-black">Total por Cor e Tam.</p>
+                  <p className="text-[10px] text-purple-300/60 font-normal">Todas juntas, sem modelo</p>
+                </div>
+                <ChevronDown className="w-3.5 h-3.5 ml-auto opacity-50 flex-shrink-0" />
+              </button>
+            </div>
           )}
 
           {/* Table section */}
@@ -605,8 +630,10 @@ export default function ProdutosPage() {
         </main>
       </div>
 
-      {/* Modal */}
-      {showModal && <ModalResumo produtos={produtos} onClose={() => setShowModal(false)} />}
+      {/* Modal 1: por produto */}
+      {showModal      && <ModalResumoPorProduto produtos={produtos} onClose={() => setShowModal(false)} />}
+      {/* Modal 2: total agrupado */}
+      {showModalAgrup && <ModalResumoAgrupado   produtos={produtos} onClose={() => setShowModalAgrup(false)} />}
     </div>
   )
 }
