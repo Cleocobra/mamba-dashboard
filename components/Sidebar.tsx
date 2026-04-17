@@ -8,13 +8,14 @@ import { useSidebar } from '@/context/SidebarContext'
 import Image from 'next/image'
 import {
   LayoutDashboard, ShoppingBag, Megaphone,
-  TrendingUp, Settings, ChevronRight, LogOut, X,
+  TrendingUp, Settings, ChevronRight, LogOut, X, Package,
 } from 'lucide-react'
 import type { UserPayload } from '@/lib/auth'
 
 const ALL_NAV = [
   { label: 'Dashboard',      href: '/',             icon: LayoutDashboard, perm: 'dashboard'     },
   { label: 'Pedidos',        href: '/pedidos',       icon: ShoppingBag,     perm: 'pedidos'       },
+  { label: 'Produtos Vendidos', href: '/produtos',   icon: Package,         perm: 'produtos'      },
   { label: 'Fluxo de Caixa', href: '/fluxo',         icon: TrendingUp,      perm: 'fluxo'         },
   { label: 'Meta Ads',       href: '/anuncios',      icon: Megaphone,       perm: 'anuncios'      },
   { label: 'Configurações',  href: '/configuracoes', icon: Settings,        perm: 'configuracoes' },

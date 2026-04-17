@@ -115,6 +115,66 @@ export function calcularTotalPedidos(pedidos: any[]): number {
   }, 0)
 }
 
+// ── Extração de produtos de um pedido detalhado ────────────────────────────
+export interface ProdutoItem {
+  nome:       string
+  tipo:       string
+  cor:        string
+  tamanho:    string
+  quantidade: number
+  receita:    number
+  sku:        string
+}
+
+function extrairTipo(variacao: Record<string, any>): string {
+  for (const [key, val] of Object.entries(variacao)) {
+    const k = key.toLowerCase()
+    if (k.includes('gên') || k.includes('gen') || k.includes('tipo') || k.includes('model')) {
+      return val?.nome || '—'
+    }
+  }
+  return '—'
+}
+
+function extrairCor(variacao: Record<string, any>): string {
+  for (const [, val] of Object.entries(variacao)) {
+    if (val && typeof val === 'object' && 'cor' in val) return val.nome || '—'
+  }
+  for (const [key, val] of Object.entries(variacao)) {
+    const k = key.toLowerCase()
+    if (k.includes('cor') || k.includes('color') || k.includes('colour')) return val?.nome || '—'
+  }
+  return '—'
+}
+
+function extrairTamanho(variacao: Record<string, any>): string {
+  for (const [key, val] of Object.entries(variacao)) {
+    const k = key.toLowerCase()
+    if (k.includes('tamanho') || k.includes('size') || k.includes('tam')) {
+      return val?.nome || '—'
+    }
+  }
+  return '—'
+}
+
+export function extrairProdutos(order: any): ProdutoItem[] {
+  const itens: any[] = order.itens || []
+  return itens.map(item => {
+    const variacao: Record<string, any> = item.variacao || {}
+    const qtd = parseFloat(item.quantidade || '0')
+    const preco = parseFloat(item.preco_venda || item.preco_subtotal || '0')
+    return {
+      nome:       item.nome || '—',
+      tipo:       extrairTipo(variacao),
+      cor:        extrairCor(variacao),
+      tamanho:    extrairTamanho(variacao),
+      quantidade: qtd,
+      receita:    qtd * preco,
+      sku:        item.sku || '—',
+    }
+  })
+}
+
 export function agruparPedidosPorDia(pedidos: any[]): Record<string, { entradas: number; quantidade: number }> {
   const agrupado: Record<string, { entradas: number; quantidade: number }> = {}
 

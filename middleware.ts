@@ -11,6 +11,7 @@ const ROUTE_PERM: Record<string, string> = {
   '/pedidos':      'pedidos',
   '/fluxo':        'fluxo',
   '/anuncios':     'anuncios',
+  '/produtos':     'produtos',
   '/configuracoes':'configuracoes',
 }
 
@@ -20,6 +21,7 @@ const PERM_ROUTE: Record<string, string> = {
   pedidos:       '/pedidos',
   fluxo:         '/fluxo',
   anuncios:      '/anuncios',
+  produtos:      '/produtos',
   configuracoes: '/configuracoes',
 }
 
