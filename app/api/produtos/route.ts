@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken } from '@/lib/auth'
-import { getPedidos, extrairProdutos, ProdutoItem } from '@/lib/lojaintegrada'
+import { extrairProdutos, ProdutoItem } from '@/lib/lojaintegrada'
 
 const REDIS_URL   = process.env.UPSTASH_REDIS_REST_URL
 const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN
-const LI_KEY_API  = process.env.LI_CHAVE_API        || 'c9b02688ef5097ab6a26'
-const LI_KEY_APP  = process.env.LI_CHAVE_APLICACAO  || 'df63ca80-5968-4476-9b43-11189846cb9a'
+const LI_KEY_API  = process.env.LI_CHAVE_API       || 'c9b02688ef5097ab6a26'
+const LI_KEY_APP  = process.env.LI_CHAVE_APLICACAO || 'df63ca80-5968-4476-9b43-11189846cb9a'
 const LI_BASE     = 'https://api.awsli.com.br/v1'
 
 // ── Redis helpers ──────────────────────────────────────────────────────────
@@ -39,6 +39,42 @@ async function requireAuth(req: NextRequest) {
   return verifyToken(token)
 }
 
+// ── LI fetch com retry (3 tentativas) ─────────────────────────────────────
+async function liFetch(url: string, attempt = 1): Promise<any> {
+  try {
+    const res = await fetch(url, { cache: 'no-store' })
+    const text = await res.text()
+    if (!res.ok) {
+      if (attempt < 3) {
+        await new Promise(r => setTimeout(r, 300 * attempt))
+        return liFetch(url, attempt + 1)
+      }
+      throw new Error(`Loja Integrada API ${res.status}: ${text}`)
+    }
+    return JSON.parse(text)
+  } catch (e: any) {
+    if (attempt < 3 && !e.message.startsWith('Loja Integrada')) {
+      await new Promise(r => setTimeout(r, 300 * attempt))
+      return liFetch(url, attempt + 1)
+    }
+    throw e
+  }
+}
+
+// ── Busca lista de pedidos (com cache Redis 5 min) ─────────────────────────
+async function getPedidosList(limit = 500): Promise<any[]> {
+  const cacheKey = `mamba_pedidos_list_${limit}`
+  const cached = await redisGet(cacheKey)
+  if (cached) {
+    try { return JSON.parse(cached) } catch {}
+  }
+  const url = `${LI_BASE}/pedido/?chave_api=${LI_KEY_API}&chave_aplicacao=${LI_KEY_APP}&limit=${limit}&offset=0`
+  const data = await liFetch(url)
+  const objects = data.objects || []
+  await redisSetEx(cacheKey, 300, JSON.stringify(objects))
+  return objects
+}
+
 // ── Busca detalhes de um pedido (com cache Redis 30 min) ───────────────────
 async function getOrderDetails(numero: number): Promise<any | null> {
   const cacheKey = `mamba_order_${numero}`
@@ -48,9 +84,7 @@ async function getOrderDetails(numero: number): Promise<any | null> {
   }
   try {
     const url = `${LI_BASE}/pedido/${numero}/?chave_api=${LI_KEY_API}&chave_aplicacao=${LI_KEY_APP}`
-    const res = await fetch(url, { cache: 'no-store' })
-    if (!res.ok) return null
-    const data = await res.json()
+    const data = await liFetch(url)
     if (data && !data.error_message) {
       await redisSetEx(cacheKey, 1800, JSON.stringify(data))
     }
@@ -112,13 +146,12 @@ export async function GET(req: NextRequest) {
   const hoje = new Date()
   const { inicio, fim } = calcularPeriodo(periodo, hoje, dataInicio, dataFim)
 
-  // Busca lista de pedidos (sem itens)
+  // Busca lista de pedidos (com cache Redis 5 min)
   let pedidosRaw: any[] = []
   try {
-    const result = await getPedidos({ limit: 400 })
-    pedidosRaw = result.objects || []
+    pedidosRaw = await getPedidosList(500)
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 })
+    return NextResponse.json({ error: `Erro ao buscar pedidos: ${e.message}` }, { status: 500 })
   }
 
   // Filtra por período
@@ -134,7 +167,6 @@ export async function GET(req: NextRequest) {
   // Agrega produtos por nome + tipo + cor + tamanho
   const produtosMap = new Map<string, ProdutoItem>()
   for (const order of detalhes) {
-    // Ignora pedidos cancelados na contagem de produtos
     if (order.situacao?.cancelado) continue
     const itens = extrairProdutos(order)
     for (const item of itens) {
@@ -155,13 +187,13 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     produtos,
     meta: {
-      total_unidades:    produtos.reduce((s, p) => s + p.quantidade, 0),
-      total_receita:     produtos.reduce((s, p) => s + p.receita, 0),
+      total_unidades:     produtos.reduce((s, p) => s + p.quantidade, 0),
+      total_receita:      produtos.reduce((s, p) => s + p.receita, 0),
       pedidos_analisados: pedidosFiltrados.length,
-      skus_unicos:       produtosMap.size,
+      skus_unicos:        produtosMap.size,
       periodo,
-      inicio:            inicio.toISOString(),
-      fim:               fim.toISOString(),
+      inicio:             inicio.toISOString(),
+      fim:                fim.toISOString(),
     },
   })
 }
