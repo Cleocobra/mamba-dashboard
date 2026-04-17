@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
 
     // Busca todos os pedidos (a LI não filtra bem por data na API)
     // Filtramos client-side depois
-    const result = await getPedidos({ limit: 500, offset })
+    const result = await getPedidos({ limit: 100, offset })
     const raw = result.objects || []
     const total_api = result.meta?.total_count || raw.length
 

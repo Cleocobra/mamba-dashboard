@@ -61,18 +61,40 @@ async function liFetch(url: string, attempt = 1): Promise<any> {
   }
 }
 
-// ── Busca lista de pedidos (com cache Redis 5 min) ─────────────────────────
-async function getPedidosList(limit = 500): Promise<any[]> {
-  const cacheKey = `mamba_pedidos_list_${limit}`
+// ── Busca TODOS os pedidos paginando (max 100 por página, cache Redis 5 min)
+async function getPedidosList(): Promise<any[]> {
+  const cacheKey = 'mamba_pedidos_list_all'
   const cached = await redisGet(cacheKey)
   if (cached) {
     try { return JSON.parse(cached) } catch {}
   }
-  const url = `${LI_BASE}/pedido/?chave_api=${LI_KEY_API}&chave_aplicacao=${LI_KEY_APP}&limit=${limit}&offset=0`
-  const data = await liFetch(url)
-  const objects = data.objects || []
-  await redisSetEx(cacheKey, 300, JSON.stringify(objects))
-  return objects
+
+  const PAGE = 100
+  const all: any[] = []
+  let offset = 0
+
+  // Primeira página — para saber o total
+  const first = await liFetch(
+    `${LI_BASE}/pedido/?chave_api=${LI_KEY_API}&chave_aplicacao=${LI_KEY_APP}&limit=${PAGE}&offset=0`
+  )
+  all.push(...(first.objects || []))
+  const total: number = first.meta?.total_count ?? all.length
+  offset += PAGE
+
+  // Páginas restantes em paralelo
+  const pages: Promise<any>[] = []
+  while (offset < total) {
+    const off = offset
+    pages.push(
+      liFetch(`${LI_BASE}/pedido/?chave_api=${LI_KEY_API}&chave_aplicacao=${LI_KEY_APP}&limit=${PAGE}&offset=${off}`)
+    )
+    offset += PAGE
+  }
+  const rest = await Promise.all(pages)
+  for (const r of rest) all.push(...(r.objects || []))
+
+  await redisSetEx(cacheKey, 300, JSON.stringify(all))
+  return all
 }
 
 // ── Busca detalhes de um pedido (com cache Redis 30 min) ───────────────────
@@ -149,7 +171,7 @@ export async function GET(req: NextRequest) {
   // Busca lista de pedidos (com cache Redis 5 min)
   let pedidosRaw: any[] = []
   try {
-    pedidosRaw = await getPedidosList(500)
+    pedidosRaw = await getPedidosList()
   } catch (e: any) {
     return NextResponse.json({ error: `Erro ao buscar pedidos: ${e.message}` }, { status: 500 })
   }
