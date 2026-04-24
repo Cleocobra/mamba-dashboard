@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import Sidebar from '@/components/Sidebar'
 import Header from '@/components/Header'
 import {
@@ -22,6 +22,12 @@ interface Lancamento {
   valor: number
   data: string
   categoria: string
+}
+
+type PeriodoFluxo = 'tudo' | 'hoje' | 'ontem' | '7d' | '30d' | 'personalizado'
+
+const PERIODO_LABELS: Record<PeriodoFluxo, string> = {
+  tudo: 'Tudo', hoje: 'Hoje', ontem: 'Ontem', '7d': '7 dias', '30d': '30 dias', personalizado: 'Personalizado',
 }
 
 const CATEGORIAS_ENTRADA = ['Vendas', 'Transferência', 'Investimento', 'Outros']
@@ -46,14 +52,20 @@ const ChartTooltip = ({ active, payload, label }: any) => {
 }
 
 export default function FluxoPage() {
-  const [lancamentos,   setLancamentos]   = useState<Lancamento[]>([])
-  const [saldoInicial,  setSaldoInicial]  = useState(SALDO_INICIAL_PADRAO)
-  const [editandoSaldo, setEditandoSaldo] = useState(false)
-  const [saldoTemp,     setSaldoTemp]     = useState('')
-  const [showForm,      setShowForm]      = useState(false)
-  const [isLoading,     setIsLoading]     = useState(true)
-  const [isSaving,      setIsSaving]      = useState(false)
-  const [saveError,     setSaveError]     = useState(false)
+  const [lancamentos,      setLancamentos]      = useState<Lancamento[]>([])
+  const [saldoInicial,     setSaldoInicial]     = useState(SALDO_INICIAL_PADRAO)
+  const [editandoSaldo,    setEditandoSaldo]    = useState(false)
+  const [saldoTemp,        setSaldoTemp]        = useState('')
+  const [showForm,         setShowForm]         = useState(false)
+  const [isLoading,        setIsLoading]        = useState(true)
+  const [isSaving,         setIsSaving]         = useState(false)
+  const [saveError,        setSaveError]        = useState(false)
+
+  // Filtro de período
+  const [periodoFluxo,     setPeriodoFluxo]     = useState<PeriodoFluxo>('tudo')
+  const [dataInicioFluxo,  setDataInicioFluxo]  = useState('')
+  const [dataFimFluxo,     setDataFimFluxo]     = useState('')
+
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const [form, setForm] = useState({
@@ -97,31 +109,94 @@ export default function FluxoPage() {
     }, 800)
   }, [])
 
-  // ── Cálculos ─────────────────────────────────────────────────────────────
+  // ── Lançamentos filtrados por período ────────────────────────────────────
+  const lancamentosFiltrados = useMemo(() => {
+    if (periodoFluxo === 'tudo') return lancamentos
+
+    const hoje = new Date()
+    const hojeStr = hoje.toISOString().split('T')[0]
+
+    if (periodoFluxo === 'hoje') {
+      return lancamentos.filter(l => l.data === hojeStr)
+    }
+    if (periodoFluxo === 'ontem') {
+      const ontem = new Date(hoje)
+      ontem.setDate(ontem.getDate() - 1)
+      return lancamentos.filter(l => l.data === ontem.toISOString().split('T')[0])
+    }
+    if (periodoFluxo === '7d') {
+      const ini = new Date(hoje); ini.setDate(ini.getDate() - 7)
+      const iniStr = ini.toISOString().split('T')[0]
+      return lancamentos.filter(l => l.data >= iniStr && l.data <= hojeStr)
+    }
+    if (periodoFluxo === '30d') {
+      const ini = new Date(hoje); ini.setDate(ini.getDate() - 30)
+      const iniStr = ini.toISOString().split('T')[0]
+      return lancamentos.filter(l => l.data >= iniStr && l.data <= hojeStr)
+    }
+    if (periodoFluxo === 'personalizado' && dataInicioFluxo && dataFimFluxo) {
+      return lancamentos.filter(l => l.data >= dataInicioFluxo && l.data <= dataFimFluxo)
+    }
+    return lancamentos
+  }, [lancamentos, periodoFluxo, dataInicioFluxo, dataFimFluxo])
+
+  // ── Cálculos (totais GERAIS — independem do filtro) ──────────────────────
   const totalEntradas = lancamentos.filter(l => l.tipo === 'entrada').reduce((s, l) => s + l.valor, 0)
   const totalSaidas   = lancamentos.filter(l => l.tipo === 'saida').reduce((s, l) => s + l.valor, 0)
   const saldoAtual    = saldoInicial + totalEntradas - totalSaidas
 
-  // ── Gráfico ──────────────────────────────────────────────────────────────
+  // ── Cálculos do PERÍODO filtrado ─────────────────────────────────────────
+  const filtEntradas = lancamentosFiltrados.filter(l => l.tipo === 'entrada').reduce((s, l) => s + l.valor, 0)
+  const filtSaidas   = lancamentosFiltrados.filter(l => l.tipo === 'saida').reduce((s, l) => s + l.valor, 0)
+
+  // ── Gráfico — mostra o período filtrado ──────────────────────────────────
   const chartData = useCallback(() => {
+    const hoje = new Date()
     const dias: Record<string, { entradas: number; saidas: number }> = {}
-    for (let i = 13; i >= 0; i--) {
-      const d = new Date(); d.setDate(d.getDate() - i)
-      dias[d.toISOString().split('T')[0]] = { entradas: 0, saidas: 0 }
+
+    if (periodoFluxo === 'personalizado' && dataInicioFluxo && dataFimFluxo) {
+      const cur = new Date(dataInicioFluxo + 'T00:00:00')
+      const fim = new Date(dataFimFluxo + 'T00:00:00')
+      while (cur <= fim) {
+        dias[cur.toISOString().split('T')[0]] = { entradas: 0, saidas: 0 }
+        cur.setDate(cur.getDate() + 1)
+      }
+    } else {
+      const n = periodoFluxo === 'hoje' ? 1
+        : periodoFluxo === 'ontem' ? 1
+        : periodoFluxo === '7d'    ? 7
+        : periodoFluxo === '30d'   ? 30
+        : 14  // 'tudo' → 14 dias
+      const offset = periodoFluxo === 'ontem' ? 1 : 0
+      for (let i = n - 1; i >= 0; i--) {
+        const d = new Date(hoje); d.setDate(d.getDate() - i - offset)
+        dias[d.toISOString().split('T')[0]] = { entradas: 0, saidas: 0 }
+      }
     }
+
     for (const l of lancamentos) {
       if (dias[l.data]) {
         if (l.tipo === 'entrada') dias[l.data].entradas += l.valor
         else                      dias[l.data].saidas   += l.valor
       }
     }
+
     let saldoCorrido = saldoInicial
     return Object.entries(dias).map(([data, v]) => {
       saldoCorrido += v.entradas - v.saidas
       const [, m, d] = data.split('-')
       return { label: `${d}/${m}`, entradas: v.entradas, saidas: v.saidas, saldo: saldoCorrido }
     })
-  }, [lancamentos, saldoInicial])
+  }, [lancamentos, saldoInicial, periodoFluxo, dataInicioFluxo, dataFimFluxo])
+
+  const chartTitle =
+    periodoFluxo === 'tudo'          ? 'Últimos 14 dias' :
+    periodoFluxo === 'hoje'          ? 'Hoje' :
+    periodoFluxo === 'ontem'         ? 'Ontem' :
+    periodoFluxo === '7d'            ? 'Últimos 7 dias' :
+    periodoFluxo === '30d'           ? 'Últimos 30 dias' :
+    (dataInicioFluxo && dataFimFluxo)
+      ? `${dataInicioFluxo} a ${dataFimFluxo}` : 'Período personalizado'
 
   // ── Handlers ─────────────────────────────────────────────────────────────
   const handleAddLancamento = () => {
@@ -224,40 +299,57 @@ export default function FluxoPage() {
               <p className="text-xs text-mamba-silver/50 mt-1">Clique no lápis para editar</p>
             </div>
 
-            {/* Entradas */}
+            {/* Entradas — período filtrado */}
             <div className="rounded-xl border border-green-400/20 bg-mamba-card p-4 md:p-5 card-hover animate-fade-in-up" style={{ animationDelay: '50ms' }}>
               <div className="flex items-center justify-between mb-3">
-                <p className="text-xs font-semibold tracking-wider text-mamba-silver uppercase">Entradas</p>
+                <div>
+                  <p className="text-xs font-semibold tracking-wider text-mamba-silver uppercase">Entradas</p>
+                  {periodoFluxo !== 'tudo' && (
+                    <p className="text-[10px] text-mamba-silver/40 mt-0.5">{PERIODO_LABELS[periodoFluxo]}</p>
+                  )}
+                </div>
                 <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-green-400/10 border border-green-400/20">
                   <TrendingUp className="w-4 h-4 text-green-400" strokeWidth={2} />
                 </div>
               </div>
               <p className="text-xl md:text-2xl font-black text-green-400 tabular-nums">
-                {isLoading ? <span className="skeleton w-24 h-7 block" /> : formatBRL(totalEntradas)}
+                {isLoading ? <span className="skeleton w-24 h-7 block" /> : formatBRL(filtEntradas)}
               </p>
-              <p className="text-xs text-mamba-silver/50 mt-1">{lancamentos.filter(l => l.tipo === 'entrada').length} lançamentos</p>
+              <p className="text-xs text-mamba-silver/50 mt-1">
+                {lancamentosFiltrados.filter(l => l.tipo === 'entrada').length} lançamentos
+              </p>
             </div>
 
-            {/* Saídas */}
+            {/* Saídas — período filtrado */}
             <div className="rounded-xl border border-red-400/20 bg-mamba-card p-4 md:p-5 card-hover animate-fade-in-up" style={{ animationDelay: '100ms' }}>
               <div className="flex items-center justify-between mb-3">
-                <p className="text-xs font-semibold tracking-wider text-mamba-silver uppercase">Saídas</p>
+                <div>
+                  <p className="text-xs font-semibold tracking-wider text-mamba-silver uppercase">Saídas</p>
+                  {periodoFluxo !== 'tudo' && (
+                    <p className="text-[10px] text-mamba-silver/40 mt-0.5">{PERIODO_LABELS[periodoFluxo]}</p>
+                  )}
+                </div>
                 <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-red-400/10 border border-red-400/20">
                   <TrendingDown className="w-4 h-4 text-red-400" strokeWidth={2} />
                 </div>
               </div>
               <p className="text-xl md:text-2xl font-black text-red-400 tabular-nums">
-                {isLoading ? <span className="skeleton w-24 h-7 block" /> : formatBRL(totalSaidas)}
+                {isLoading ? <span className="skeleton w-24 h-7 block" /> : formatBRL(filtSaidas)}
               </p>
-              <p className="text-xs text-mamba-silver/50 mt-1">{lancamentos.filter(l => l.tipo === 'saida').length} lançamentos</p>
+              <p className="text-xs text-mamba-silver/50 mt-1">
+                {lancamentosFiltrados.filter(l => l.tipo === 'saida').length} lançamentos
+              </p>
             </div>
 
-            {/* Saldo Atual */}
+            {/* Saldo Atual — SEMPRE geral */}
             <div className={cn('rounded-xl border bg-mamba-card p-4 md:p-5 card-hover animate-fade-in-up',
               saldoAtual >= 0 ? 'border-mamba-gold/20' : 'border-red-400/20'
             )} style={{ animationDelay: '150ms' }}>
               <div className="flex items-center justify-between mb-3">
-                <p className="text-xs font-semibold tracking-wider text-mamba-silver uppercase">Saldo Atual</p>
+                <div>
+                  <p className="text-xs font-semibold tracking-wider text-mamba-silver uppercase">Saldo Atual</p>
+                  <p className="text-[10px] text-mamba-silver/40 mt-0.5">Total geral</p>
+                </div>
                 <div className={cn('flex items-center justify-center w-8 h-8 rounded-lg border',
                   saldoAtual >= 0 ? 'bg-mamba-gold/10 border-mamba-gold/20' : 'bg-red-400/10 border-red-400/20')}>
                   <Wallet className={cn('w-4 h-4', saldoAtual >= 0 ? 'text-mamba-gold' : 'text-red-400')} strokeWidth={2} />
@@ -274,7 +366,7 @@ export default function FluxoPage() {
           <div className="rounded-xl border border-mamba-border bg-mamba-card p-5">
             <div className="mb-4">
               <h3 className="text-sm font-black text-mamba-white">Saldo Acumulado</h3>
-              <p className="text-xs text-mamba-silver mt-0.5">Últimos 14 dias</p>
+              <p className="text-xs text-mamba-silver mt-0.5">{chartTitle}</p>
             </div>
             {isLoading ? (
               <div className="h-[200px] flex items-center justify-center">
@@ -316,7 +408,7 @@ export default function FluxoPage() {
               <div>
                 <h3 className="text-sm font-black text-mamba-white">Lançamentos</h3>
                 <p className="text-xs text-mamba-silver mt-0.5">
-                  {lancamentos.length} registro{lancamentos.length !== 1 ? 's' : ''} • salvos na nuvem
+                  {lancamentos.length} registro{lancamentos.length !== 1 ? 's' : ''} total • salvos na nuvem
                 </p>
               </div>
               <button onClick={() => setShowForm(!showForm)}
@@ -325,6 +417,38 @@ export default function FluxoPage() {
                 <span className="hidden sm:inline">Novo Lançamento</span>
                 <span className="sm:hidden">Novo</span>
               </button>
+            </div>
+
+            {/* ── Filtro de período ──────────────────────────── */}
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-4 pb-4 border-b border-mamba-border">
+              <div className="flex items-center gap-1 flex-wrap">
+                <Calendar className="w-3.5 h-3.5 text-mamba-silver/50 flex-shrink-0" />
+                {(['tudo', 'hoje', 'ontem', '7d', '30d', 'personalizado'] as PeriodoFluxo[]).map(p => (
+                  <button
+                    key={p}
+                    onClick={() => setPeriodoFluxo(p)}
+                    className={cn(
+                      'px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer whitespace-nowrap',
+                      periodoFluxo === p
+                        ? 'bg-mamba-gold text-mamba-black'
+                        : 'text-mamba-silver hover:text-mamba-white border border-mamba-border hover:border-mamba-silver/40'
+                    )}
+                  >
+                    {PERIODO_LABELS[p]}
+                  </button>
+                ))}
+              </div>
+              {periodoFluxo === 'personalizado' && (
+                <div className="flex items-center gap-2 flex-wrap mt-1 sm:mt-0">
+                  <input type="date" value={dataInicioFluxo}
+                    onChange={e => setDataInicioFluxo(e.target.value)}
+                    className="input-mamba rounded-lg px-2.5 py-1 text-[11px]" />
+                  <span className="text-mamba-silver/40 text-[11px]">até</span>
+                  <input type="date" value={dataFimFluxo}
+                    onChange={e => setDataFimFluxo(e.target.value)}
+                    className="input-mamba rounded-lg px-2.5 py-1 text-[11px]" />
+                </div>
+              )}
             </div>
 
             {/* Formulário */}
@@ -394,20 +518,22 @@ export default function FluxoPage() {
               </div>
             )}
 
-            {/* Lista */}
+            {/* Lista filtrada */}
             {isLoading ? (
               <div className="flex justify-center py-10">
                 <div className="w-7 h-7 border-2 border-mamba-gold/30 border-t-mamba-gold rounded-full animate-spin" />
               </div>
-            ) : lancamentos.length === 0 ? (
+            ) : lancamentosFiltrados.length === 0 ? (
               <div className="text-center py-10 text-mamba-silver/30 text-sm">
                 <Calendar className="w-10 h-10 mx-auto mb-3 text-mamba-border" />
-                <p>Nenhum lançamento ainda.</p>
-                <p className="text-xs mt-1">Clique em "Novo" para começar.</p>
+                {lancamentos.length === 0
+                  ? <><p>Nenhum lançamento ainda.</p><p className="text-xs mt-1">Clique em "Novo" para começar.</p></>
+                  : <p>Nenhum lançamento no período selecionado.</p>
+                }
               </div>
             ) : (
               <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
-                {lancamentos.map(l => (
+                {lancamentosFiltrados.map(l => (
                   <div key={l.id}
                     className="flex items-center gap-3 p-3 rounded-lg bg-mamba-dark border border-mamba-border hover:border-mamba-border/80 transition-colors">
                     <div className={cn('flex items-center justify-center w-9 h-9 rounded-lg flex-shrink-0',
@@ -433,13 +559,27 @@ export default function FluxoPage() {
               </div>
             )}
 
-            {/* Totalizador */}
-            {lancamentos.length > 0 && (
+            {/* Totalizador do período */}
+            {lancamentosFiltrados.length > 0 && (
               <div className="mt-4 pt-4 border-t border-mamba-border flex flex-wrap items-center justify-between gap-2">
                 <span className="text-xs text-mamba-silver/60 font-medium">
-                  {formatBRL(saldoInicial)} + {formatBRL(totalEntradas)} − {formatBRL(totalSaidas)}
+                  {periodoFluxo !== 'tudo' ? `${PERIODO_LABELS[periodoFluxo]} — ` : ''}
+                  Entradas {formatBRL(filtEntradas)} − Saídas {formatBRL(filtSaidas)}
                 </span>
                 <span className={cn('text-base font-black tabular-nums',
+                  (filtEntradas - filtSaidas) >= 0 ? 'text-mamba-gold' : 'text-red-400')}>
+                  = {formatBRL(filtEntradas - filtSaidas)}
+                </span>
+              </div>
+            )}
+
+            {/* Saldo geral (sempre visível quando há lançamentos) */}
+            {lancamentos.length > 0 && (
+              <div className="mt-2 pt-2 border-t border-mamba-border/50 flex flex-wrap items-center justify-between gap-2">
+                <span className="text-[11px] text-mamba-silver/40 font-medium">
+                  Saldo geral: {formatBRL(saldoInicial)} + {formatBRL(totalEntradas)} − {formatBRL(totalSaidas)}
+                </span>
+                <span className={cn('text-sm font-black tabular-nums',
                   saldoAtual >= 0 ? 'text-mamba-gold' : 'text-red-400')}>
                   = {formatBRL(saldoAtual)}
                 </span>

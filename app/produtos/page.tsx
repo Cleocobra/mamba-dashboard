@@ -291,6 +291,7 @@ export default function ProdutosPage() {
   const [sortDir,    setSortDir]    = useState<SortDir>('desc')
   const [showModal,       setShowModal]       = useState(false)
   const [showModalAgrup,  setShowModalAgrup]  = useState(false)
+  const [topN,            setTopN]            = useState(0) // 0 = todos
   const abortRef = useRef<AbortController | null>(null)
 
   const fetchProdutos = useCallback(async (p: Periodo, di: string, df: string) => {
@@ -350,8 +351,9 @@ export default function ProdutosPage() {
       return String(va).localeCompare(String(vb), 'pt-BR') * mul
     })
 
-  const topProduto = produtos[0]
+  const topProduto    = produtos[0]
   const totalUnidades = meta?.total_unidades ?? 0
+  const displayed     = topN > 0 ? filtered.slice(0, topN) : filtered
 
   const periodoLabels: Record<Periodo, string> = {
     hoje: 'Hoje', semana: 'Últimos 7 dias', mes: 'Últimos 30 dias', personalizado: 'Personalizado',
@@ -489,22 +491,42 @@ export default function ProdutosPage() {
 
           {/* Table section */}
           <div className="bg-mamba-card border border-mamba-border rounded-xl overflow-hidden">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 py-4 border-b border-mamba-border">
-              <div>
-                <h2 className="text-sm font-bold text-mamba-white">Detalhamento por SKU</h2>
-                <p className="text-[11px] text-mamba-silver/50 mt-0.5">
-                  {loading ? 'Carregando...' : `${filtered.length} variação${filtered.length !== 1 ? 'ões' : ''} encontrada${filtered.length !== 1 ? 's' : ''}`}
-                </p>
+            <div className="flex flex-col gap-3 px-5 py-4 border-b border-mamba-border">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-sm font-bold text-mamba-white">Detalhamento por SKU</h2>
+                  <p className="text-[11px] text-mamba-silver/50 mt-0.5">
+                    {loading ? 'Carregando...' : `Exibindo ${displayed.length} de ${filtered.length} variação${filtered.length !== 1 ? 'ões' : ''}`}
+                  </p>
+                </div>
+                <div className="relative w-full sm:w-64">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-mamba-silver/40" />
+                  <input
+                    type="text"
+                    value={busca}
+                    onChange={e => setBusca(e.target.value)}
+                    placeholder="Buscar produto, cor, tamanho..."
+                    className="w-full input-mamba rounded-lg pl-9 pr-3 py-2 text-xs"
+                  />
+                </div>
               </div>
-              <div className="relative w-full sm:w-64">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-mamba-silver/40" />
-                <input
-                  type="text"
-                  value={busca}
-                  onChange={e => setBusca(e.target.value)}
-                  placeholder="Buscar produto, cor, tamanho..."
-                  className="w-full input-mamba rounded-lg pl-9 pr-3 py-2 text-xs"
-                />
+              {/* Top N filter */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[10px] font-bold text-mamba-silver/40 uppercase tracking-wider">Exibir:</span>
+                {([5, 10, 15, 20, 0] as const).map(n => (
+                  <button
+                    key={n}
+                    onClick={() => setTopN(n)}
+                    className={cn(
+                      'px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all duration-150 cursor-pointer',
+                      topN === n
+                        ? 'bg-mamba-gold text-mamba-black'
+                        : 'text-mamba-silver hover:text-mamba-white border border-mamba-border hover:border-mamba-silver/40'
+                    )}
+                  >
+                    {n === 0 ? 'Todos' : `Top ${n}`}
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -542,7 +564,7 @@ export default function ProdutosPage() {
                         <td className="px-4 py-3"><Skeleton className="h-4 w-20 ml-auto" /></td>
                       </tr>
                     ))
-                  ) : filtered.length === 0 ? (
+                  ) : displayed.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="px-4 py-16 text-center">
                         <Package className="w-10 h-10 text-mamba-silver/20 mx-auto mb-3" />
@@ -552,7 +574,7 @@ export default function ProdutosPage() {
                       </td>
                     </tr>
                   ) : (
-                    filtered.map((p, i) => (
+                    displayed.map((p, i) => (
                       <tr key={`${p.sku}-${i}`} className="hover:bg-mamba-black/30 transition-colors">
                         <td className="px-4 py-3">
                           <div className="flex items-start gap-2.5 max-w-xs">
@@ -598,20 +620,20 @@ export default function ProdutosPage() {
                   )}
                 </tbody>
 
-                {!loading && filtered.length > 0 && (
+                {!loading && displayed.length > 0 && (
                   <tfoot>
                     <tr className="border-t-2 border-mamba-gold/20 bg-mamba-gold/5">
                       <td colSpan={4} className="px-4 py-3 text-xs font-bold text-mamba-silver/60 uppercase tracking-wider">
-                        Total ({filtered.length} SKU{filtered.length !== 1 ? 's' : ''})
+                        Total ({displayed.length} SKU{displayed.length !== 1 ? 's' : ''}{topN > 0 ? ` — Top ${topN}` : ''})
                       </td>
                       <td className="px-4 py-3 text-right">
                         <span className="text-sm font-black text-mamba-gold">
-                          {fmtQtd(filtered.reduce((s, p) => s + p.quantidade, 0))}
+                          {fmtQtd(displayed.reduce((s, p) => s + p.quantidade, 0))}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right">
                         <span className="text-sm font-black text-green-400">
-                          {fmtBRL(filtered.reduce((s, p) => s + p.receita, 0))}
+                          {fmtBRL(displayed.reduce((s, p) => s + p.receita, 0))}
                         </span>
                       </td>
                     </tr>

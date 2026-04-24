@@ -191,3 +191,35 @@ export async function getCashflowPorDias(dias_n: number): Promise<{
 
   return { cashflow, total_entradas: cashflow.reduce((s, d) => s + d.entradas, 0) }
 }
+
+// Busca pedidos por datas personalizadas (dashboard personalizado)
+export async function getPedidosPorDatas(de: string, ate: string) {
+  const inicio = new Date(de  + 'T00:00:00')
+  const fim    = new Date(ate + 'T23:59:59')
+  const todos  = await fetchRecentesPorPeriodo(inicio)
+  const filtrados = todos
+    .filter(p => { const d = new Date(p.data); return d >= inicio && d <= fim })
+    .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime())
+  const total_valor = filtrados.reduce((s, p) => s + parseFloat(p.valor_total || '0'), 0)
+  return { pedidos: filtrados, total_pedidos: filtrados.length, total_valor }
+}
+
+export async function getCashflowPorDatas(de: string, ate: string) {
+  const inicio = new Date(de  + 'T00:00:00')
+  const fim    = new Date(ate + 'T23:59:59')
+  const todos  = await fetchRecentesPorPeriodo(inicio)
+
+  const days: Array<{ data: string; entradas: number; saidas: number; saldo: number }> = []
+  const cur = new Date(inicio)
+  while (cur <= fim) {
+    const chave = cur.toISOString().split('T')[0]
+    const ini = new Date(cur); ini.setHours(0, 0, 0, 0)
+    const f   = new Date(cur); f.setHours(23, 59, 59, 999)
+    const entradas = todos
+      .filter(p => { const pd = new Date(p.data); return pd >= ini && pd <= f })
+      .reduce((s, p) => s + parseFloat(p.valor_total || '0'), 0)
+    days.push({ data: chave, entradas, saidas: 0, saldo: entradas })
+    cur.setDate(cur.getDate() + 1)
+  }
+  return { cashflow: days, total_entradas: days.reduce((s, d) => s + d.entradas, 0) }
+}
