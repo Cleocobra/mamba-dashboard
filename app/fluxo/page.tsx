@@ -87,26 +87,24 @@ export default function FluxoPage() {
       .finally(() => setIsLoading(false))
   }, [])
 
-  // ── Salva no servidor com debounce de 800ms ──────────────────────────────
-  const persistir = useCallback((lancs: Lancamento[], saldo: number) => {
+  // ── Salva no servidor IMEDIATAMENTE (sem debounce para evitar perda ao atualizar) ──
+  const persistir = useCallback(async (lancs: Lancamento[], saldo: number) => {
     if (saveTimer.current) clearTimeout(saveTimer.current)
     setIsSaving(true)
     setSaveError(false)
-    saveTimer.current = setTimeout(async () => {
-      try {
-        const res = await fetch('/api/fluxo', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ lancamentos: lancs, saldoInicial: saldo }),
-        })
-        if (!res.ok) throw new Error()
-        setSaveError(false)
-      } catch {
-        setSaveError(true)
-      } finally {
-        setIsSaving(false)
-      }
-    }, 800)
+    try {
+      const res = await fetch('/api/fluxo', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lancamentos: lancs, saldoInicial: saldo }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      setSaveError(false)
+    } catch {
+      setSaveError(true)
+    } finally {
+      setIsSaving(false)
+    }
   }, [])
 
   // ── Lançamentos filtrados por período ────────────────────────────────────
