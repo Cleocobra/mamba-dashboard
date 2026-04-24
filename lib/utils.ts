@@ -19,23 +19,33 @@ export function formatPercent(value: number): string {
   return `${value > 0 ? '+' : ''}${value.toFixed(1)}%`
 }
 
+// Faz parse de string de data sem erro de fuso horário.
+// "2026-04-17" sem sufixo de timezone é interpretado como UTC pelo JS,
+// o que causa o dia aparecer como 16 no Brasil (UTC-3).
+// Adicionando T00:00:00 forçamos parse como horário local.
+function parseLocalDate(date: string | Date): Date {
+  if (typeof date !== 'string') return date
+  // Se já tem horário (T ou espaço), usa new Date normalmente
+  if (date.includes('T') || date.includes(' ')) return new Date(date)
+  // Só data (YYYY-MM-DD) → parse como local
+  return new Date(date + 'T00:00:00')
+}
+
 export function formatDate(date: string | Date): string {
-  const d = typeof date === 'string' ? new Date(date) : date
   return new Intl.DateTimeFormat('pt-BR', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
-  }).format(d)
+  }).format(parseLocalDate(date))
 }
 
 export function formatDateTime(date: string | Date): string {
-  const d = typeof date === 'string' ? new Date(date) : date
   return new Intl.DateTimeFormat('pt-BR', {
     day: '2-digit',
     month: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
-  }).format(d)
+  }).format(parseLocalDate(date))
 }
 
 export function getStatusColor(status: string): string {
