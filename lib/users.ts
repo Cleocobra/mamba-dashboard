@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs'
 import type { Permission, UserRole } from './auth'
+import { redisExec } from './redis'
 
 export interface User {
   id:           string
@@ -12,22 +13,13 @@ export interface User {
 
 export type SafeUser = Omit<User, 'passwordHash'>
 
-// ── Upstash Redis (REST, sem pacote extra) ─────────────────────────────────
-const REDIS_URL   = process.env.UPSTASH_REDIS_REST_URL
-const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN
-const USERS_KEY   = 'mamba_users'
+// ── Persistência Redis (self-host via REDIS_URL ou Upstash REST) ───────────
+const USERS_KEY = 'mamba_users'
 
-async function redisCmd(cmd: unknown[]): Promise<any> {
-  if (!REDIS_URL || !REDIS_TOKEN) return null
+// Wrapper gracioso: nunca lança (deixa cair no fallback USERS_JSON / seed).
+async function redisCmd(cmd: (string | number)[]): Promise<any> {
   try {
-    const res = await fetch(REDIS_URL, {
-      method:  'POST',
-      headers: { Authorization: `Bearer ${REDIS_TOKEN}`, 'Content-Type': 'application/json' },
-      body:    JSON.stringify(cmd),
-      cache:   'no-store',
-    })
-    const data = await res.json()
-    return data.result ?? null
+    return await redisExec(cmd)
   } catch {
     return null
   }

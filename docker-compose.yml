@@ -1,0 +1,51 @@
+# Mamba Dashboard — isolado em rede própria (mamba_proxy).
+# O nginx central (leadspanel-nginx-1) é anexado a essa rede e faz proxy_pass
+# para http://mamba-dashboard:3000. Redis é self-hosted, sem dependência de nuvem.
+services:
+  web:
+    build: .
+    image: mamba-dashboard
+    container_name: mamba-dashboard
+    restart: always
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - REDIS_URL=redis://mamba-redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - mamba_proxy
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/login"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  redis:
+    image: redis:7-alpine
+    container_name: mamba-redis
+    restart: always
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - mamba_redis_data:/data
+    networks:
+      - mamba_proxy
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  mamba_redis_data:
+    name: mamba_redis_data
+
+networks:
+  mamba_proxy:
+    name: mamba_proxy

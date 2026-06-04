@@ -1,37 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken } from '@/lib/auth'
+import { redisExec } from '@/lib/redis'
 
-const REDIS_URL   = process.env.UPSTASH_REDIS_REST_URL
-const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN
 const KEY_LANCAMENTOS   = 'mamba_fluxo_lancamentos'
 const KEY_SALDO_INICIAL = 'mamba_fluxo_saldo_inicial'
 
 // ── Redis helpers ──────────────────────────────────────────────────────────
 async function redisGet(key: string): Promise<string | null> {
-  if (!REDIS_URL || !REDIS_TOKEN) return null
   try {
-    const res = await fetch(`${REDIS_URL}/get/${encodeURIComponent(key)}`, {
-      headers: { Authorization: `Bearer ${REDIS_TOKEN}` },
-      cache: 'no-store',
-    })
-    if (!res.ok) return null
-    const data = await res.json()
-    return data.result ?? null
+    return await redisExec(['GET', key])
   } catch { return null }
 }
 
 async function redisSet(key: string, value: string): Promise<void> {
-  if (!REDIS_URL || !REDIS_TOKEN) throw new Error('Redis não configurado (env vars ausentes)')
-  const res = await fetch(REDIS_URL, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${REDIS_TOKEN}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(['SET', key, value]),
-    cache: 'no-store',
-  })
-  if (!res.ok) {
-    const body = await res.text().catch(() => '')
-    throw new Error(`Redis SET falhou ${res.status}: ${body}`)
-  }
+  // Lança em caso de falha — o PUT reporta o erro pro usuário.
+  await redisExec(['SET', key, value])
 }
 
 // ── Auth ───────────────────────────────────────────────────────────────────

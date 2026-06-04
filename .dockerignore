@@ -1,0 +1,11 @@
+node_modules
+.next
+.git
+.vercel
+npm-debug.log*
+.env*.local
+.env.vercel
+.env.vercel.pulled
+.DS_Store
+*.tsbuildinfo
+README.md
