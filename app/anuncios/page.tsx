@@ -13,7 +13,7 @@ import {
 } from 'lucide-react'
 import { formatBRL, formatNumber } from '@/lib/utils'
 import { cn } from '@/lib/utils'
-import { ACCENT } from '@/lib/branding'
+import { ACCENT, STORE_NAME } from '@/lib/branding'
 
 const PRESETS = [
   { label: 'Hoje',    value: 'today'    },
@@ -41,6 +41,10 @@ export default function AnunciosPage() {
   const [preset,       setPreset]       = useState('last_7d')
   const [contaAtiva,   setContaAtiva]   = useState('todas')
   const [oauthMsg,     setOauthMsg]     = useState<string | null>(null)
+  const [needsSel,     setNeedsSel]     = useState(false)
+  const [accountsAll,  setAccountsAll]  = useState<any[]>([])
+  const [selectedIds,  setSelectedIds]  = useState<string[]>([])
+  const [savingSel,    setSavingSel]    = useState(false)
 
   const fetchMeta = async (p = preset) => {
     try {
@@ -48,18 +52,68 @@ export default function AnunciosPage() {
       const res  = await fetch(`/api/meta?preset=${p}`)
       const json = await res.json()
       setConnected(json.connected || false)
-      if (json.connected) setData(json.data)
-      else if (!json.needs_oauth) setError(json.error || 'Erro desconhecido')
+      if (json.connected) {
+        setNeedsSel(false)
+        setData(json.data)
+      } else if (json.needs_selection) {
+        setNeedsSel(true)
+        setAccountsAll(json.accounts_all || [])
+        // Pré-seleciona contas cujo nome bate com a loja
+        setSelectedIds((json.accounts_all || [])
+          .filter((a: any) => a.name?.toLowerCase().includes(STORE_NAME.toLowerCase()))
+          .map((a: any) => a.id))
+      } else if (!json.needs_oauth) {
+        setError(json.error || 'Erro desconhecido')
+      }
     } catch (err: any) {
       setError(err.message)
     }
   }
 
+  const salvarSelecao = async () => {
+    if (selectedIds.length === 0) return
+    setSavingSel(true)
+    try {
+      const res  = await fetch('/api/meta/select', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ ids: selectedIds }),
+      })
+      const json = await res.json()
+      if (json.ok) {
+        setNeedsSel(false)
+        setIsRefreshing(true)
+        await fetchMeta()
+        setIsRefreshing(false)
+      } else {
+        setError(json.error || 'Erro ao salvar seleção')
+      }
+    } finally {
+      setSavingSel(false)
+    }
+  }
+
+  const trocarContas = async () => {
+    const res  = await fetch('/api/meta/select', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ reset: true }),
+    })
+    const json = await res.json()
+    if (json.ok) {
+      setAccountsAll(json.accounts_all || [])
+      setSelectedIds((data?.contas || []).map((c: any) => c.id).filter(Boolean))
+      setConnected(false)
+      setData(null)
+      setNeedsSel(true)
+    }
+  }
+
   useEffect(() => {
-    // Feedback do retorno OAuth (?meta_connected / ?meta_error)
+    // Feedback do retorno OAuth (?meta_connected / ?meta_error / ?meta_selecionar)
     const sp = new URLSearchParams(window.location.search)
     if (sp.get('meta_error')) setOauthMsg(sp.get('meta_error'))
-    if (sp.has('meta_connected') || sp.has('meta_error'))
+    if (sp.has('meta_connected') || sp.has('meta_error') || sp.has('meta_selecionar'))
       window.history.replaceState(null, '', '/anuncios')
     fetchMeta().finally(() => setIsLoading(false))
   }, [])
@@ -149,12 +203,47 @@ export default function AnunciosPage() {
               </div>
             )}
 
+            {connected && (
+              <button onClick={trocarContas}
+                className="text-[11px] text-mamba-silver/40 hover:text-mamba-silver underline underline-offset-2 cursor-pointer">
+                Trocar contas
+              </button>
+            )}
+
             {isRefreshing && <RefreshCw className="w-4 h-4 text-mamba-silver/50 animate-spin" />}
           </div>
 
           {isLoading ? (
             <div className="flex items-center justify-center py-20">
               <div className="w-8 h-8 border-2 border-mamba-gold/30 border-t-mamba-gold rounded-full animate-spin" />
+            </div>
+          ) : needsSel ? (
+            <div className="max-w-2xl">
+              <div className="p-5 rounded-xl bg-mamba-card border border-mamba-border">
+                <h4 className="text-xs font-bold tracking-wider text-mamba-silver uppercase mb-1">Escolha as contas do painel</h4>
+                <p className="text-[11px] text-mamba-silver/50 mb-4">
+                  Seu login Meta acessa {accountsAll.length} contas de anúncio — selecione as que este painel deve acompanhar.
+                </p>
+                <div className="space-y-1 max-h-80 overflow-y-auto pr-1">
+                  {accountsAll.map((a: any) => (
+                    <label key={a.id} className={cn('flex items-center gap-3 p-2.5 rounded-lg cursor-pointer border transition-colors',
+                      selectedIds.includes(a.id) ? 'border-mamba-gold/40 bg-mamba-gold/5' : 'border-transparent hover:bg-mamba-dark')}>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(a.id)}
+                        onChange={e => setSelectedIds(ids => e.target.checked ? [...ids, a.id] : ids.filter(i => i !== a.id))}
+                        className="accent-mamba-gold w-4 h-4 flex-shrink-0"
+                      />
+                      <span className="text-sm text-mamba-white">{a.name}</span>
+                      <span className="text-[10px] text-mamba-silver/40 ml-auto font-mono flex-shrink-0">{a.id}</span>
+                    </label>
+                  ))}
+                </div>
+                <button onClick={salvarSelecao} disabled={savingSel || selectedIds.length === 0}
+                  className="mt-4 bg-mamba-gold text-mamba-black font-black px-6 py-2.5 rounded-lg text-xs tracking-widest uppercase hover:brightness-110 transition-all disabled:opacity-40 cursor-pointer">
+                  {savingSel ? 'Salvando...' : `Acompanhar ${selectedIds.length} conta${selectedIds.length === 1 ? '' : 's'}`}
+                </button>
+              </div>
             </div>
           ) : error ? (
             <div className="p-5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">{error}</div>

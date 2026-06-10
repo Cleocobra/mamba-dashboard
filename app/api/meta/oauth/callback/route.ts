@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { saveMetaConn } from '@/lib/meta'
+import { saveMetaAuth } from '@/lib/meta'
 
 const API_VER = 'v20.0'
 
@@ -61,9 +61,10 @@ export async function GET(req: NextRequest) {
     }))
     if (accounts.length === 0) throw new Error('Nenhuma conta de anúncios encontrada para este usuário')
 
-    await saveMetaConn(token, accounts)
+    await saveMetaAuth(token, accounts)
 
-    const res = back('meta_connected=1')
+    // Várias contas acessíveis → admin escolhe quais o painel acompanha
+    const res = back(accounts.length === 1 ? 'meta_connected=1' : 'meta_selecionar=1')
     res.cookies.delete('meta_oauth_state')
     return res
   } catch (e: any) {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getMetaConn, type MetaAccount } from '@/lib/meta'
+import { getMetaConn, getAllAccounts, type MetaAccount } from '@/lib/meta'
 
 const API_VER = 'v20.0'
 
@@ -71,6 +71,7 @@ async function fetchDailySpend(token: string, accountId: string, days: number) {
 
 function consolidaConta(account: MetaAccount, campaigns: CampaignInsight[]) {
   return {
+    id:             account.id,
     account_name:   account.name,
     name:           account.name,
     spend:          campaigns.reduce((s, c) => s + c.spend, 0),
@@ -84,7 +85,15 @@ function consolidaConta(account: MetaAccount, campaigns: CampaignInsight[]) {
 
 export async function GET(request: NextRequest) {
   const { token, accounts } = await getMetaConn()
-  if (!token || accounts.length === 0) {
+  if (!token) {
+    return NextResponse.json({ connected: false, needs_oauth: true, error: 'Conta Meta não conectada.' })
+  }
+  if (accounts.length === 0) {
+    // Token OK mas contas ainda não escolhidas → painel mostra o seletor
+    const accounts_all = await getAllAccounts()
+    if (accounts_all.length > 0) {
+      return NextResponse.json({ connected: false, needs_selection: true, accounts_all })
+    }
     return NextResponse.json({ connected: false, needs_oauth: true, error: 'Conta Meta não conectada.' })
   }
 
