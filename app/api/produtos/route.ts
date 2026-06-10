@@ -30,15 +30,17 @@ async function liFetch(url: string, attempt = 1): Promise<any> {
     const res = await fetch(url, { cache: 'no-store' })
     const text = await res.text()
     if (!res.ok) {
-      if (attempt < 3) {
-        await new Promise(r => setTimeout(r, 300 * attempt))
+      if (attempt < 4) {
+        // 429 (throttling LI) pede espera bem maior que erro transitório comum
+        const espera = res.status === 429 ? 1500 * attempt : 300 * attempt
+        await new Promise(r => setTimeout(r, espera))
         return liFetch(url, attempt + 1)
       }
       throw new Error(`Loja Integrada API ${res.status}: ${text}`)
     }
     return JSON.parse(text)
   } catch (e: any) {
-    if (attempt < 3 && !e.message.startsWith('Loja Integrada')) {
+    if (attempt < 4 && !e.message.startsWith('Loja Integrada')) {
       await new Promise(r => setTimeout(r, 300 * attempt))
       return liFetch(url, attempt + 1)
     }
@@ -46,37 +48,41 @@ async function liFetch(url: string, attempt = 1): Promise<any> {
   }
 }
 
-// ── Busca TODOS os pedidos paginando (max 100 por página, cache Redis 5 min)
-async function getPedidosList(): Promise<any[]> {
-  const cacheKey = 'mamba_pedidos_list_all'
+// ── Busca pedidos do período paginando do mais recente pro mais antigo.
+// order_by=-data_criacao + parada assim que a página cobre o início do período.
+// Paginar tudo é inviável em loja grande (100k+ pedidos → throttling da LI).
+async function getPedidosList(inicio: Date): Promise<any[]> {
+  const desde = inicio.toISOString().slice(0, 10)
+  const cacheKey = `pedidos_list_${desde}`
   const cached = await redisGet(cacheKey)
   if (cached) {
     try { return JSON.parse(cached) } catch {}
   }
 
   const PAGE = 100
+  const MAX_PAGES = 50   // teto de segurança (5.000 pedidos por consulta)
+  const LOTE = 3         // páginas em paralelo — gentil com o rate limit
   const all: any[] = []
   let offset = 0
+  let total = Infinity
+  let coberto = false
 
-  // Primeira página — para saber o total
-  const first = await liFetch(
-    `${LI_BASE}/pedido/?chave_api=${LI_KEY_API}&chave_aplicacao=${LI_KEY_APP}&limit=${PAGE}&offset=0`
-  )
-  all.push(...(first.objects || []))
-  const total: number = first.meta?.total_count ?? all.length
-  offset += PAGE
-
-  // Páginas restantes em paralelo
-  const pages: Promise<any>[] = []
-  while (offset < total) {
-    const off = offset
-    pages.push(
-      liFetch(`${LI_BASE}/pedido/?chave_api=${LI_KEY_API}&chave_aplicacao=${LI_KEY_APP}&limit=${PAGE}&offset=${off}`)
-    )
-    offset += PAGE
+  while (!coberto && offset < total && offset < MAX_PAGES * PAGE) {
+    const lote: Promise<any>[] = []
+    for (let i = 0; i < LOTE && offset < total && offset < MAX_PAGES * PAGE; i++) {
+      lote.push(liFetch(
+        `${LI_BASE}/pedido/?chave_api=${LI_KEY_API}&chave_aplicacao=${LI_KEY_APP}&limit=${PAGE}&offset=${offset}&order_by=-data_criacao`
+      ))
+      offset += PAGE
+    }
+    const results = await Promise.all(lote)
+    for (const r of results) {
+      all.push(...(r.objects || []))
+      total = r.meta?.total_count ?? total
+    }
+    const maisAntigo = all[all.length - 1]?.data_criacao
+    coberto = !!maisAntigo && new Date(maisAntigo).getTime() < inicio.getTime()
   }
-  const rest = await Promise.all(pages)
-  for (const r of rest) all.push(...(r.objects || []))
 
   await redisSetEx(cacheKey, 300, JSON.stringify(all))
   return all
@@ -107,6 +113,8 @@ async function fetchDetailsBatched(numeros: number[]): Promise<any[]> {
     const batch = numeros.slice(i, i + BATCH)
     const res = await Promise.all(batch.map(n => getOrderDetails(n)))
     results.push(...res.filter(Boolean))
+    // pausa entre lotes — evita acumular throttling em períodos longos
+    if (i + BATCH < numeros.length) await new Promise(r => setTimeout(r, 250))
   }
   return results
 }
@@ -153,10 +161,10 @@ export async function GET(req: NextRequest) {
   const hoje = new Date()
   const { inicio, fim } = calcularPeriodo(periodo, hoje, dataInicio, dataFim)
 
-  // Busca lista de pedidos (com cache Redis 5 min)
+  // Busca lista de pedidos do período (com cache Redis 5 min)
   let pedidosRaw: any[] = []
   try {
-    pedidosRaw = await getPedidosList()
+    pedidosRaw = await getPedidosList(inicio)
   } catch (e: any) {
     return NextResponse.json({ error: `Erro ao buscar pedidos: ${e.message}` }, { status: 500 })
   }
