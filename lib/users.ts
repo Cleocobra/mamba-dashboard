@@ -46,11 +46,11 @@ async function loadUsers(): Promise<User[]> {
     } catch {}
   }
 
-  // 3. Seed admin padrão
+  // 3. Seed admin padrão (parametrizável por instância white-label)
   _cache = [{
     id:           'admin-001',
-    username:     'mamba',
-    passwordHash: bcrypt.hashSync('Mamba@2026*Army', 10),
+    username:     process.env.SEED_ADMIN_USER || 'mamba',
+    passwordHash: bcrypt.hashSync(process.env.SEED_ADMIN_PASSWORD || 'Mamba@2026*Army', 10),
     role:         'admin',
     permissions:  ['dashboard', 'pedidos', 'fluxo', 'anuncios', 'configuracoes'],
     createdAt:    new Date().toISOString(),

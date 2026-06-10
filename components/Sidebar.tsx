@@ -11,6 +11,7 @@ import {
   TrendingUp, Settings, ChevronRight, LogOut, X, Package,
 } from 'lucide-react'
 import type { UserPayload } from '@/lib/auth'
+import { STORE_NAME, STORE_LOGO } from '@/lib/branding'
 
 const ALL_NAV = [
   { label: 'Dashboard',      href: '/',             icon: LayoutDashboard, perm: 'dashboard'     },
@@ -75,8 +76,8 @@ export default function Sidebar() {
         {/* Logo */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-mamba-border">
           <Image
-            src="/logo-mamba.png"
-            alt="Mamba Army"
+            src={STORE_LOGO}
+            alt={STORE_NAME}
             width={148}
             height={34}
             priority

@@ -1,10 +1,11 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import { SidebarProvider } from '@/context/SidebarContext'
+import { STORE_NAME } from '@/lib/branding'
 
 export const metadata: Metadata = {
-  title: 'Mamba Army | Dashboard',
-  description: 'Painel de controle Mamba Army — Fluxo de Caixa, Pedidos e Anúncios',
+  title: `${STORE_NAME} | Dashboard`,
+  description: `Painel de controle ${STORE_NAME} — Fluxo de Caixa, Pedidos e Anúncios`,
   icons: {
     icon: '/favicon.ico',
   },

@@ -9,6 +9,13 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
+# Branding white-label: NEXT_PUBLIC_* precisa existir no build (é inlined pelo Next)
+ARG NEXT_PUBLIC_STORE_NAME
+ARG NEXT_PUBLIC_STORE_LOGO
+ARG NEXT_PUBLIC_APP_URL
+ENV NEXT_PUBLIC_STORE_NAME=$NEXT_PUBLIC_STORE_NAME \
+    NEXT_PUBLIC_STORE_LOGO=$NEXT_PUBLIC_STORE_LOGO \
+    NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 RUN npm run build
 
 FROM node:20-alpine AS runner

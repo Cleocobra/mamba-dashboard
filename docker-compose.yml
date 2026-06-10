@@ -1,22 +1,33 @@
-# Mamba Dashboard — isolado em rede própria (mamba_proxy).
+# Dashboard isolado em rede própria (${APP_SLUG}_proxy).
 # O nginx central (leadspanel-nginx-1) é anexado a essa rede e faz proxy_pass
-# para http://mamba-dashboard:3000. Redis é self-hosted, sem dependência de nuvem.
+# para http://${APP_SLUG}-dashboard:3000. Redis é self-hosted, sem dependência de nuvem.
+#
+# White-label: defina no .env da instância —
+#   APP_SLUG=minhaloja                       (nomes de container/rede/volume)
+#   NEXT_PUBLIC_STORE_NAME=Minha Loja        (marca exibida na UI)
+#   NEXT_PUBLIC_STORE_LOGO=/logo-minhaloja.png  (arquivo em public/, pode ser untracked)
+# Sem nada definido, mantém os nomes/marca Mamba originais.
 services:
   web:
-    build: .
-    image: mamba-dashboard
-    container_name: mamba-dashboard
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_STORE_NAME: ${NEXT_PUBLIC_STORE_NAME:-}
+        NEXT_PUBLIC_STORE_LOGO: ${NEXT_PUBLIC_STORE_LOGO:-}
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-}
+    image: ${APP_SLUG:-mamba}-dashboard
+    container_name: ${APP_SLUG:-mamba}-dashboard
     restart: always
     env_file:
       - .env
     environment:
       - NODE_ENV=production
-      - REDIS_URL=redis://mamba-redis:6379
+      - REDIS_URL=redis://${APP_SLUG:-mamba}-redis:6379
     depends_on:
       redis:
         condition: service_healthy
     networks:
-      - mamba_proxy
+      - proxy
     security_opt:
       - no-new-privileges:true
     healthcheck:
@@ -27,13 +38,13 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: mamba-redis
+    container_name: ${APP_SLUG:-mamba}-redis
     restart: always
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
-      - mamba_redis_data:/data
+      - redis_data:/data
     networks:
-      - mamba_proxy
+      - proxy
     security_opt:
       - no-new-privileges:true
     healthcheck:
@@ -43,9 +54,9 @@ services:
       retries: 5
 
 volumes:
-  mamba_redis_data:
-    name: mamba_redis_data
+  redis_data:
+    name: ${APP_SLUG:-mamba}_redis_data
 
 networks:
-  mamba_proxy:
-    name: mamba_proxy
+  proxy:
+    name: ${APP_SLUG:-mamba}_proxy

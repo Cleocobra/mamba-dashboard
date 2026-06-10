@@ -4,6 +4,7 @@ import { useState, FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { Eye, EyeOff, Lock, User } from 'lucide-react'
+import { STORE_NAME, STORE_LOGO } from '@/lib/branding'
 
 export default function LoginPage() {
   const [username,  setUsername]  = useState('')
@@ -51,8 +52,8 @@ export default function LoginPage() {
           {/* Logo */}
           <div className="flex flex-col items-center mb-8">
             <Image
-              src="/logo-mamba.png"
-              alt="Mamba Army"
+              src={STORE_LOGO}
+              alt={STORE_NAME}
               width={220}
               height={50}
               priority
@@ -133,7 +134,7 @@ export default function LoginPage() {
         </div>
 
         <p className="text-center text-[10px] text-mamba-silver/20 mt-6 tracking-wider">
-          MAMBA ARMY © {new Date().getFullYear()} — USO INTERNO
+          {STORE_NAME.toUpperCase()} © {new Date().getFullYear()} — USO INTERNO
         </p>
       </div>
     </div>
