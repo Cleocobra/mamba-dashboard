@@ -33,7 +33,8 @@ RUN addgroup --system --gid 1001 nodejs \
  && adduser  --system --uid 1001 nextjs
 
 # Saída standalone do Next (server.js + node_modules mínimo)
-COPY --from=builder /app/public ./public
+# --chown obrigatório: clone com umask restritivo deixa 640 root e o user nextjs não lê
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
