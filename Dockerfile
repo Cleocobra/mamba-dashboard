@@ -24,6 +24,8 @@ RUN npm run build
 
 FROM node:20-alpine AS runner
 WORKDIR /app
+# tzdata: necessário pro TZ=America/Sao_Paulo funcionar (períodos "hoje" etc.)
+RUN apk add --no-cache tzdata
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000

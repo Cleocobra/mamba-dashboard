@@ -1,57 +1,56 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getPedidos, normalizarPedidos, agruparPedidosPorDia } from '@/lib/lojaintegrada'
-import { getLastNDays } from '@/lib/utils'
-import type { CashFlowEntry } from '@/lib/types'
+import { getPedidosDesde, localYMD } from '@/lib/lojaintegrada'
+
+// Entradas por dia (gráfico do dashboard). Agrupamento em dia LOCAL do
+// servidor (TZ=America/Sao_Paulo) — nunca toISOString, que desloca pra UTC.
 
 export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url)
-  const dias = parseInt(searchParams.get('dias') || '7')
+  const sp  = request.nextUrl.searchParams
+  const de  = sp.get('de')
+  const ate = sp.get('ate')
+
+  let inicio: Date
+  let fim: Date
+  if (de && ate) {
+    inicio = new Date(de + 'T00:00:00')
+    fim    = new Date(ate + 'T23:59:59.999')
+    if (isNaN(inicio.getTime()) || isNaN(fim.getTime())) {
+      return NextResponse.json({ error: 'Datas inválidas' }, { status: 400 })
+    }
+  } else {
+    const dias = Math.min(Math.max(parseInt(sp.get('dias') || '7'), 1), 90)
+    fim = new Date(); fim.setHours(23, 59, 59, 999)
+    inicio = new Date(); inicio.setDate(inicio.getDate() - (dias - 1)); inicio.setHours(0, 0, 0, 0)
+  }
 
   try {
-    // Busca pedidos recentes (500 para cobrir o período)
-    const result = await getPedidos({ limit: 500 })
-    const raw = result.objects || []
-    const pedidos = normalizarPedidos(raw)
+    const todos = await getPedidosDesde(inicio)
 
-    // Filtra pelo período solicitado
-    const inicio = new Date()
-    inicio.setDate(inicio.getDate() - dias)
-    inicio.setHours(0, 0, 0, 0)
-    const pedidosFiltrados = pedidos.filter((p) => {
-      if (!p.data) return false
-      return new Date(p.data).getTime() >= inicio.getTime()
-    })
+    const porDia: Record<string, number> = {}
+    for (const p of todos) {
+      if (!p.data || p.status_pagamento === 'cancelado') continue
+      const d = new Date(p.data)
+      if (d < inicio || d > fim) continue
+      const k = localYMD(d)
+      porDia[k] = (porDia[k] || 0) + (parseFloat(p.valor_total || '0') || 0)
+    }
 
-    const porDia = agruparPedidosPorDia(pedidosFiltrados)
-    const labels = getLastNDays(dias)
-
-    const cashflow: CashFlowEntry[] = labels.map((data) => {
-      const entradas = porDia[data]?.entradas || 0
-      return {
-        data,
-        entradas,
-        saidas: 0, // Saídas manuais ainda não persistidas
-        saldo: entradas,
-      }
-    })
-
-    const total_entradas = cashflow.reduce((a, c) => a + c.entradas, 0)
-    const total_saidas = 0
-    const saldo_periodo = total_entradas
+    const cashflow: Array<{ data: string; entradas: number; saidas: number; saldo: number }> = []
+    const cur = new Date(inicio)
+    while (cur <= fim) {
+      const k = localYMD(cur)
+      const entradas = porDia[k] || 0
+      cashflow.push({ data: k, entradas, saidas: 0, saldo: entradas })
+      cur.setDate(cur.getDate() + 1)
+    }
 
     return NextResponse.json({
       cashflow,
-      summary: {
-        total_entradas,
-        total_saidas,
-        saldo_periodo,
-        dias,
-      },
+      total_entradas: cashflow.reduce((s, d) => s + d.entradas, 0),
     })
   } catch (error: any) {
-    console.error('Erro ao buscar fluxo de caixa:', error)
     return NextResponse.json(
-      { error: `Falha: ${error.message}`, cashflow: [], summary: { total_entradas: 0, total_saidas: 0, saldo_periodo: 0 } },
+      { error: `Falha: ${error.message}`, cashflow: [], total_entradas: 0 },
       { status: 500 }
     )
   }

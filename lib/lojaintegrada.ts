@@ -1,3 +1,5 @@
+import { redisExec } from './redis'
+
 const BASE_URL = 'https://api.awsli.com.br/v1'
 // Sem fallback: instância mal configurada deve falhar alto, nunca mostrar dados de outra loja
 const CHAVE_API = process.env.LI_CHAVE_API || ''
@@ -27,6 +29,7 @@ export async function getPedidos(params: {
   situacao_id?: number
   limit?: number
   offset?: number
+  order_by?: string
 } = {}) {
   const queryParams: Record<string, string | number | undefined> = {
     limit: params.limit || 50,
@@ -36,6 +39,7 @@ export async function getPedidos(params: {
   if (params.data_inicio) queryParams['criado_em__gte'] = params.data_inicio
   if (params.data_fim)    queryParams['criado_em__lte'] = params.data_fim
   if (params.situacao_id) queryParams['situacao'] = params.situacao_id
+  if (params.order_by)    queryParams['order_by'] = params.order_by
 
   const url = buildUrl('/pedido/', queryParams)
 
@@ -49,37 +53,46 @@ export async function getPedidos(params: {
   return res.json()
 }
 
-export async function getPedidosHoje() {
-  const hoje = new Date()
-  const inicio = new Date(hoje)
-  inicio.setHours(0, 0, 0, 0)
-  const fim = new Date(hoje)
-  fim.setHours(23, 59, 59, 999)
-
-  // Busca ampla e filtra client-side (LI não filtra por data_criacao de forma confiável)
-  const result = await getPedidos({ limit: 200 })
-  const pedidos = normalizarPedidos(result.objects || [])
-
-  const inicioMs = inicio.getTime()
-  const fimMs = fim.getTime()
-
-  return pedidos.filter((p: any) => {
-    const d = new Date(p.data).getTime()
-    return d >= inicioMs && d <= fimMs
-  })
+// ── Data local YYYY-MM-DD (no fuso do servidor — TZ=America/Sao_Paulo) ──────
+// NUNCA usar toISOString() pra agrupar por dia: ela converte pra UTC e
+// desloca o dia a partir das 21h no Brasil.
+export function localYMD(d: Date): string {
+  const m  = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${d.getFullYear()}-${m}-${dd}`
 }
 
-export async function getPedidosPeriodo(dias: number) {
-  const hoje = new Date()
-  const inicio = new Date(hoje)
-  inicio.setDate(inicio.getDate() - dias)
-  inicio.setHours(0, 0, 0, 0)
+// ── Pedidos desde uma data (recente → antigo, parada antecipada) ────────────
+// A LI ignora os filtros de data (criado_em__gte) e o param `sort`, mas honra
+// `order_by=-data_criacao`: paginamos do mais novo e paramos quando a página
+// alcança o início do período. Cache Redis curto compartilhado entre as rotas.
+export async function getPedidosDesde(inicio: Date): Promise<any[]> {
+  const cacheKey = `li_desde_${localYMD(inicio)}`
+  try {
+    const cached = await redisExec(['GET', cacheKey])
+    if (cached) return JSON.parse(cached)
+  } catch {}
 
-  const result = await getPedidos({ limit: 500 })
-  const pedidos = normalizarPedidos(result.objects || [])
+  const PAGE = 100
+  const MAX_PAGES = 50 // teto de segurança (~5.000 pedidos por consulta)
+  const brutos: any[] = []
+  let offset = 0
+  let total = Infinity
 
-  const inicioMs = inicio.getTime()
-  return pedidos.filter((p: any) => new Date(p.data).getTime() >= inicioMs)
+  while (offset < total && offset < MAX_PAGES * PAGE) {
+    const r = await getPedidos({ limit: PAGE, offset, order_by: '-data_criacao' })
+    const objs = r.objects || []
+    if (objs.length === 0) break
+    total = r.meta?.total_count ?? total
+    brutos.push(...objs)
+    const maisAntigo = objs[objs.length - 1]?.data_criacao
+    if (maisAntigo && new Date(maisAntigo).getTime() < inicio.getTime()) break
+    offset += PAGE
+  }
+
+  const pedidos = normalizarPedidos(brutos)
+  try { await redisExec(['SET', cacheKey, JSON.stringify(pedidos), 'EX', 180]) } catch {}
+  return pedidos
 }
 
 // Normaliza o formato bruto da LI para o formato do dashboard
