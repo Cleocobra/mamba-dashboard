@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import { SidebarProvider } from '@/context/SidebarContext'
-import { STORE_NAME } from '@/lib/branding'
+import { STORE_NAME, ACCENT, ACCENT_DIM, ACCENT_RGB } from '@/lib/branding'
 
 export const metadata: Metadata = {
   title: `${STORE_NAME} | Dashboard`,
@@ -17,7 +17,11 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="pt-BR" className="dark">
+    <html
+      lang="pt-BR"
+      className="dark"
+      style={{ '--gold': ACCENT, '--gold-dim': ACCENT_DIM, '--gold-rgb': ACCENT_RGB } as React.CSSProperties}
+    >
       <body className="bg-mamba-black min-h-screen font-sans antialiased">
         <SidebarProvider>{children}</SidebarProvider>
       </body>

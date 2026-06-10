@@ -11,6 +11,7 @@ import {
   Legend,
 } from 'recharts'
 import { formatBRL } from '@/lib/utils'
+import { ACCENT_DIM } from '@/lib/branding'
 import type { CashFlowEntry } from '@/lib/types'
 
 interface CashFlowChartProps {
@@ -60,8 +61,8 @@ export default function CashFlowChart({ data }: CashFlowChartProps) {
             <stop offset="100%" stopColor="#EF4444" stopOpacity={0} />
           </linearGradient>
           <linearGradient id="gradSaldo" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#FFCC00" stopOpacity={0.25} />
-            <stop offset="100%" stopColor="#FFCC00" stopOpacity={0} />
+            <stop offset="0%" stopColor={ACCENT_DIM} stopOpacity={0.25} />
+            <stop offset="100%" stopColor={ACCENT_DIM} stopOpacity={0} />
           </linearGradient>
         </defs>
 
@@ -113,11 +114,11 @@ export default function CashFlowChart({ data }: CashFlowChartProps) {
           type="monotone"
           dataKey="saldo"
           name="Saldo"
-          stroke="#FFCC00"
+          stroke={ACCENT_DIM}
           strokeWidth={2}
           fill="url(#gradSaldo)"
           dot={false}
-          activeDot={{ r: 4, fill: '#FFCC00', strokeWidth: 0 }}
+          activeDot={{ r: 4, fill: ACCENT_DIM, strokeWidth: 0 }}
         />
       </AreaChart>
     </ResponsiveContainer>

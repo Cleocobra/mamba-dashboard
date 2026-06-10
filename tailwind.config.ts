@@ -1,5 +1,13 @@
 import type { Config } from 'tailwindcss'
 
+// Acento white-label resolvido em build-time (mesma lógica de lib/branding.ts —
+// duplicado aqui porque o config roda fora do grafo de módulos do app)
+const ACCENT     = process.env.NEXT_PUBLIC_ACCENT     || '#FFFF00'
+const ACCENT_DIM = process.env.NEXT_PUBLIC_ACCENT_DIM || '#CCCC00'
+const ACCENT_RGB = [0, 2, 4]
+  .map(i => parseInt(ACCENT.replace('#', '').slice(i, i + 2), 16))
+  .join(',')
+
 const config: Config = {
   content: [
     './pages/**/*.{js,ts,jsx,tsx,mdx}',
@@ -14,8 +22,8 @@ const config: Config = {
           dark:    '#111111',
           card:    '#1A1A1A',
           border:  '#2A2A2A',
-          gold:    '#FFFF00',
-          'gold-dim': '#CCCC00',
+          gold:    ACCENT,
+          'gold-dim': ACCENT_DIM,
           silver:  '#BCBCBC',
           white:   '#F5F5F5',
         },
@@ -25,11 +33,11 @@ const config: Config = {
         mono: ['Roboto Mono', 'monospace'],
       },
       backgroundImage: {
-        'gold-gradient': 'linear-gradient(135deg, #FFCC00 0%, #FF9900 100%)',
+        'gold-gradient': `linear-gradient(135deg, ${ACCENT} 0%, ${ACCENT_DIM} 100%)`,
         'dark-gradient': 'linear-gradient(180deg, #1A1A1A 0%, #0A0A0A 100%)',
       },
       boxShadow: {
-        'gold-glow': '0 0 20px rgba(255,204,0,0.15)',
+        'gold-glow': `0 0 20px rgba(${ACCENT_RGB},0.15)`,
         'card': '0 4px 24px rgba(0,0,0,0.4)',
       },
       animation: {

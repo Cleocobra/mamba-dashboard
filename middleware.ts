@@ -30,6 +30,8 @@ export async function middleware(req: NextRequest) {
 
   // Estáticos e rotas públicas → passa direto
   if (pathname.startsWith('/_next') || pathname.startsWith('/favicon')) return NextResponse.next()
+  // Assets do public/ (logos etc.) — o otimizador de imagem busca sem cookie de auth
+  if (/\.(png|jpe?g|svg|webp|ico|gif|avif)$/i.test(pathname))           return NextResponse.next()
   if (PUBLIC_PATHS.includes(pathname))                                   return NextResponse.next()
   if (PUBLIC_API.some(p => pathname.startsWith(p)))                     return NextResponse.next()
 

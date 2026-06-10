@@ -1,14 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getMetaConn, type MetaAccount } from '@/lib/meta'
 
-const TOKEN    = process.env.META_ACCESS_TOKEN
-const ACCOUNT1 = process.env.META_AD_ACCOUNT_1 || '1295816082283298'
-const ACCOUNT2 = process.env.META_AD_ACCOUNT_2 || '6791359754274084'
-const API_VER  = 'v20.0'
-
-const ACCOUNT_NAMES: Record<string, string> = {
-  '1295816082283298': 'Mamba 2025',
-  '6791359754274084': 'Mamba Army',
-}
+const API_VER = 'v20.0'
 
 interface CampaignInsight {
   campaign_id: string
@@ -32,10 +25,10 @@ function parseAction(arr: any[], type: string): number {
   return found ? parseFloat(found.value || '0') : 0
 }
 
-async function fetchAccountInsights(accountId: string, accountName: string, datePreset: string) {
+async function fetchAccountInsights(token: string, accountId: string, accountName: string, datePreset: string) {
   const fields = 'spend,impressions,clicks,cpc,cpm,campaign_name,campaign_id,purchase_roas,actions,action_values'
   const id = accountId.trim()
-  const url = `https://graph.facebook.com/${API_VER}/act_${id}/insights?fields=${fields}&date_preset=${datePreset}&level=campaign&access_token=${TOKEN}`
+  const url = `https://graph.facebook.com/${API_VER}/act_${id}/insights?fields=${fields}&date_preset=${datePreset}&level=campaign&access_token=${token}`
   const res = await fetch(url, { cache: 'no-store' })
   if (!res.ok) {
     const err = await res.json()
@@ -61,12 +54,12 @@ async function fetchAccountInsights(accountId: string, accountName: string, date
   }))
 }
 
-async function fetchDailySpend(accountId: string, days: number) {
+async function fetchDailySpend(token: string, accountId: string, days: number) {
   const since = new Date(); since.setDate(since.getDate() - days)
   const sinceStr = since.toISOString().split('T')[0]
   const untilStr = new Date().toISOString().split('T')[0]
 
-  const url = `https://graph.facebook.com/${API_VER}/act_${accountId}/insights?fields=spend&time_range={"since":"${sinceStr}","until":"${untilStr}"}&time_increment=1&access_token=${TOKEN}`
+  const url = `https://graph.facebook.com/${API_VER}/act_${accountId.trim()}/insights?fields=spend&time_range={"since":"${sinceStr}","until":"${untilStr}"}&time_increment=1&access_token=${token}`
   const res = await fetch(url, { cache: 'no-store' })
   if (!res.ok) return []
   const data = await res.json()
@@ -76,62 +69,52 @@ async function fetchDailySpend(accountId: string, days: number) {
   }))
 }
 
+function consolidaConta(account: MetaAccount, campaigns: CampaignInsight[]) {
+  return {
+    account_name:   account.name,
+    name:           account.name,
+    spend:          campaigns.reduce((s, c) => s + c.spend, 0),
+    impressions:    campaigns.reduce((s, c) => s + c.impressions, 0),
+    clicks:         campaigns.reduce((s, c) => s + c.clicks, 0),
+    purchases:      campaigns.reduce((s, c) => s + c.purchases, 0),
+    purchase_value: campaigns.reduce((s, c) => s + c.purchase_value, 0),
+    campaigns:      campaigns.length,
+  }
+}
+
 export async function GET(request: NextRequest) {
-  if (!TOKEN) {
-    return NextResponse.json({ connected: false, error: 'META_ACCESS_TOKEN não configurado.' })
+  const { token, accounts } = await getMetaConn()
+  if (!token || accounts.length === 0) {
+    return NextResponse.json({ connected: false, needs_oauth: true, error: 'Conta Meta não conectada.' })
   }
 
   const { searchParams } = new URL(request.url)
   const datePreset = searchParams.get('preset') || 'last_7d'
 
   try {
-    const [campaigns1, campaigns2, daily1, daily2] = await Promise.all([
-      fetchAccountInsights(ACCOUNT1, 'Mamba 2025', datePreset),
-      fetchAccountInsights(ACCOUNT2, 'Mamba Army', datePreset),
-      fetchDailySpend(ACCOUNT1, 14),
-      fetchDailySpend(ACCOUNT2, 14),
+    const [porConta, porContaDaily] = await Promise.all([
+      Promise.all(accounts.map(a => fetchAccountInsights(token, a.id, a.name, datePreset))),
+      Promise.all(accounts.map(a => fetchDailySpend(token, a.id, 14))),
     ])
 
-    const allCampaigns = [...campaigns1, ...campaigns2]
+    const allCampaigns = porConta.flat()
       .sort((a: CampaignInsight, b: CampaignInsight) => b.spend - a.spend)
 
-    // Consolida gastos diários
+    // Consolida gastos diários de todas as contas
     const dailyMap: Record<string, number> = {}
-    for (const d of [...daily1, ...daily2]) {
+    for (const d of porContaDaily.flat()) {
       dailyMap[d.data] = (dailyMap[d.data] || 0) + d.gasto
     }
     const daily_combined = Object.entries(dailyMap)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([data, gasto]) => ({ data, gasto }))
 
-    // Totais por conta — inclui account_name para filtro no front
-    const conta1 = {
-      account_name: 'Mamba 2025',
-      name:         'Mamba 2025',
-      spend:        campaigns1.reduce((s: number, c: CampaignInsight) => s + c.spend, 0),
-      impressions:  campaigns1.reduce((s: number, c: CampaignInsight) => s + c.impressions, 0),
-      clicks:       campaigns1.reduce((s: number, c: CampaignInsight) => s + c.clicks, 0),
-      purchases:    campaigns1.reduce((s: number, c: CampaignInsight) => s + c.purchases, 0),
-      purchase_value: campaigns1.reduce((s: number, c: CampaignInsight) => s + c.purchase_value, 0),
-      campaigns:    campaigns1.length,
-    }
-    const conta2 = {
-      account_name: 'Mamba Army',
-      name:         'Mamba Army',
-      spend:        campaigns2.reduce((s: number, c: CampaignInsight) => s + c.spend, 0),
-      impressions:  campaigns2.reduce((s: number, c: CampaignInsight) => s + c.impressions, 0),
-      clicks:       campaigns2.reduce((s: number, c: CampaignInsight) => s + c.clicks, 0),
-      purchases:    campaigns2.reduce((s: number, c: CampaignInsight) => s + c.purchases, 0),
-      purchase_value: campaigns2.reduce((s: number, c: CampaignInsight) => s + c.purchase_value, 0),
-      campaigns:    campaigns2.length,
-    }
-
     return NextResponse.json({
       connected: true,
       data: {
         campaigns:   allCampaigns,
         daily_spend: daily_combined,
-        contas:      [conta1, conta2],
+        contas:      accounts.map((a, i) => consolidaConta(a, porConta[i])),
         date_preset: datePreset,
       },
     })

@@ -15,6 +15,8 @@ services:
         NEXT_PUBLIC_STORE_NAME: ${NEXT_PUBLIC_STORE_NAME:-}
         NEXT_PUBLIC_STORE_LOGO: ${NEXT_PUBLIC_STORE_LOGO:-}
         NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-}
+        NEXT_PUBLIC_ACCENT: ${NEXT_PUBLIC_ACCENT:-}
+        NEXT_PUBLIC_ACCENT_DIM: ${NEXT_PUBLIC_ACCENT_DIM:-}
     image: ${APP_SLUG:-mamba}-dashboard
     container_name: ${APP_SLUG:-mamba}-dashboard
     restart: always

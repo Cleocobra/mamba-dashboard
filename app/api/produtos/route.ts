@@ -1,35 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken } from '@/lib/auth'
 import { extrairProdutos, ProdutoItem } from '@/lib/lojaintegrada'
+import { redisExec } from '@/lib/redis'
 
-const REDIS_URL   = process.env.UPSTASH_REDIS_REST_URL
-const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN
-const LI_KEY_API  = process.env.LI_CHAVE_API       || 'c9b02688ef5097ab6a26'
-const LI_KEY_APP  = process.env.LI_CHAVE_APLICACAO || 'df63ca80-5968-4476-9b43-11189846cb9a'
+// Sem fallback: instância mal configurada deve falhar alto, nunca mostrar dados de outra loja
+const LI_KEY_API  = process.env.LI_CHAVE_API       || ''
+const LI_KEY_APP  = process.env.LI_CHAVE_APLICACAO || ''
 const LI_BASE     = 'https://api.awsli.com.br/v1'
 
-// ── Redis helpers ──────────────────────────────────────────────────────────
+// ── Redis helpers (self-host via REDIS_URL ou Upstash REST) ────────────────
 async function redisGet(key: string): Promise<string | null> {
-  if (!REDIS_URL || !REDIS_TOKEN) return null
-  try {
-    const res = await fetch(`${REDIS_URL}/get/${encodeURIComponent(key)}`, {
-      headers: { Authorization: `Bearer ${REDIS_TOKEN}` },
-      cache: 'no-store',
-    })
-    const data = await res.json()
-    return data.result ?? null
-  } catch { return null }
+  try { return await redisExec(['GET', key]) } catch { return null }
 }
 
 async function redisSetEx(key: string, seconds: number, value: string): Promise<void> {
-  if (!REDIS_URL || !REDIS_TOKEN) return
-  try {
-    await fetch(REDIS_URL, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${REDIS_TOKEN}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(['SET', key, value, 'EX', seconds]),
-    })
-  } catch {}
+  try { await redisExec(['SET', key, value, 'EX', seconds]) } catch {}
 }
 
 // ── Auth ───────────────────────────────────────────────────────────────────

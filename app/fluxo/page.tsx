@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { formatBRL, formatDate } from '@/lib/utils'
 import { cn } from '@/lib/utils'
+import { ACCENT } from '@/lib/branding'
 
 interface Lancamento {
   id: string
@@ -380,8 +381,8 @@ export default function FluxoPage() {
                 <AreaChart data={dados} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="gradSaldo" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%"   stopColor="#FFFF00" stopOpacity={0.25} />
-                      <stop offset="100%" stopColor="#FFFF00" stopOpacity={0}    />
+                      <stop offset="0%"   stopColor={ACCENT} stopOpacity={0.25} />
+                      <stop offset="100%" stopColor={ACCENT} stopOpacity={0}    />
                     </linearGradient>
                     <linearGradient id="gradEnt" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%"   stopColor="#22C55E" stopOpacity={0.3} />
@@ -394,7 +395,7 @@ export default function FluxoPage() {
                     tickFormatter={v => v >= 1000 ? `R$${(v/1000).toFixed(0)}k` : `R$${v}`} width={55} />
                   <Tooltip content={<ChartTooltip />} />
                   <Area type="monotone" dataKey="entradas" name="Entradas" stroke="#22C55E" strokeWidth={2} fill="url(#gradEnt)" dot={false} />
-                  <Area type="monotone" dataKey="saldo"    name="Saldo"    stroke="#FFFF00" strokeWidth={2} fill="url(#gradSaldo)" dot={false} />
+                  <Area type="monotone" dataKey="saldo"    name="Saldo"    stroke={ACCENT} strokeWidth={2} fill="url(#gradSaldo)" dot={false} />
                 </AreaChart>
               </ResponsiveContainer>
             )}

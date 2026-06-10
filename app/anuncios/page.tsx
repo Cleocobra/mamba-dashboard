@@ -13,18 +13,13 @@ import {
 } from 'lucide-react'
 import { formatBRL, formatNumber } from '@/lib/utils'
 import { cn } from '@/lib/utils'
+import { ACCENT } from '@/lib/branding'
 
 const PRESETS = [
   { label: 'Hoje',    value: 'today'    },
   { label: 'Ontem',  value: 'yesterday' },
   { label: '7 dias', value: 'last_7d'  },
   { label: '30 dias',value: 'last_30d' },
-]
-
-const CONTAS = [
-  { label: 'Todas',       value: 'todas'       },
-  { label: 'Mamba 2025',  value: 'Mamba 2025'  },
-  { label: 'Mamba Army',  value: 'Mamba Army'  },
 ]
 
 const ChartTooltip = ({ active, payload, label }: any) => {
@@ -45,6 +40,7 @@ export default function AnunciosPage() {
   const [error,        setError]        = useState<string | null>(null)
   const [preset,       setPreset]       = useState('last_7d')
   const [contaAtiva,   setContaAtiva]   = useState('todas')
+  const [oauthMsg,     setOauthMsg]     = useState<string | null>(null)
 
   const fetchMeta = async (p = preset) => {
     try {
@@ -53,13 +49,18 @@ export default function AnunciosPage() {
       const json = await res.json()
       setConnected(json.connected || false)
       if (json.connected) setData(json.data)
-      else setError(json.error || 'Erro desconhecido')
+      else if (!json.needs_oauth) setError(json.error || 'Erro desconhecido')
     } catch (err: any) {
       setError(err.message)
     }
   }
 
   useEffect(() => {
+    // Feedback do retorno OAuth (?meta_connected / ?meta_error)
+    const sp = new URLSearchParams(window.location.search)
+    if (sp.get('meta_error')) setOauthMsg(sp.get('meta_error'))
+    if (sp.has('meta_connected') || sp.has('meta_error'))
+      window.history.replaceState(null, '', '/anuncios')
     fetchMeta().finally(() => setIsLoading(false))
   }, [])
 
@@ -75,6 +76,9 @@ export default function AnunciosPage() {
     await fetchMeta()
     setIsRefreshing(false)
   }
+
+  // Contas vêm da API (dinâmicas — OAuth ou env)
+  const contas: any[] = data?.contas || []
 
   // Filtra campanhas pelo nome da conta selecionada
   const campanhasFiltradas = (data?.campaigns || []).filter((c: any) => {
@@ -112,7 +116,9 @@ export default function AnunciosPage() {
       <div className="flex-1 flex flex-col overflow-hidden md:ml-64">
         <Header
           title="Meta Ads"
-          subtitle={connected ? 'Mamba 2025 + Mamba Army — dados em tempo real' : 'Carregando...'}
+          subtitle={connected
+            ? `${contas.map((c: any) => c.name).join(' + ')} — dados em tempo real`
+            : 'Conecte sua conta de anúncios'}
           onRefresh={handleRefresh}
           isRefreshing={isRefreshing}
         />
@@ -131,15 +137,17 @@ export default function AnunciosPage() {
               ))}
             </div>
 
-            <div className="flex items-center gap-1 p-1 bg-mamba-card rounded-lg border border-mamba-border">
-              {CONTAS.map(c => (
-                <button key={c.value} onClick={() => setContaAtiva(c.value)}
-                  className={cn('px-3 py-1.5 text-xs font-semibold rounded-md transition-all duration-200 cursor-pointer',
-                    contaAtiva === c.value ? 'bg-blue-600 text-white' : 'text-mamba-silver hover:text-mamba-white')}>
-                  {c.label}
-                </button>
-              ))}
-            </div>
+            {contas.length > 1 && (
+              <div className="flex items-center gap-1 p-1 bg-mamba-card rounded-lg border border-mamba-border">
+                {[{ name: 'Todas', account_name: 'todas' }, ...contas].map((c: any) => (
+                  <button key={c.account_name} onClick={() => setContaAtiva(c.account_name)}
+                    className={cn('px-3 py-1.5 text-xs font-semibold rounded-md transition-all duration-200 cursor-pointer',
+                      contaAtiva === c.account_name ? 'bg-blue-600 text-white' : 'text-mamba-silver hover:text-mamba-white')}>
+                    {c.name}
+                  </button>
+                ))}
+              </div>
+            )}
 
             {isRefreshing && <RefreshCw className="w-4 h-4 text-mamba-silver/50 animate-spin" />}
           </div>
@@ -151,14 +159,19 @@ export default function AnunciosPage() {
           ) : error ? (
             <div className="p-5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">{error}</div>
           ) : !connected ? (
-            <div className="p-8 rounded-xl border border-dashed border-mamba-border/60 text-center text-mamba-silver/40">
-              Não conectado
+            <div className="p-10 rounded-xl border border-dashed border-mamba-border/60 text-center space-y-4">
+              <p className="text-mamba-silver/50 text-sm">Nenhuma conta Meta conectada a este painel.</p>
+              {oauthMsg && <p className="text-red-400 text-xs">{oauthMsg}</p>}
+              <a href="/api/meta/oauth/start"
+                className="inline-block bg-mamba-gold text-mamba-black font-black px-6 py-3 rounded-lg text-sm tracking-widest uppercase hover:brightness-110 transition-all">
+                Conectar conta Meta
+              </a>
             </div>
           ) : (
             <>
               {/* Cards por conta */}
               {data?.contas && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className={cn('grid grid-cols-1 gap-4', contas.length > 1 && 'md:grid-cols-2')}>
                   {data.contas.map((conta: any, i: number) => (
                     <div key={i} className={cn('p-4 rounded-xl border bg-mamba-card', i === 0 ? 'border-blue-500/20' : 'border-purple-500/20')}>
                       <div className="flex items-center justify-between mb-3">
@@ -215,7 +228,9 @@ export default function AnunciosPage() {
               {/* Gráfico gasto diário */}
               {data?.daily_spend?.length > 0 && (
                 <div className="p-5 rounded-xl bg-mamba-card border border-mamba-border">
-                  <h4 className="text-xs font-bold tracking-wider text-mamba-silver uppercase mb-4">Gasto Diário — Ambas as Contas</h4>
+                  <h4 className="text-xs font-bold tracking-wider text-mamba-silver uppercase mb-4">
+                    Gasto Diário — {contas.length > 1 ? 'Todas as Contas' : (contas[0]?.name || '')}
+                  </h4>
                   <ResponsiveContainer width="100%" height={180}>
                     <BarChart data={data.daily_spend} margin={{ top: 2, right: 2, left: 0, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#2A2A2A" vertical={false} />
@@ -226,7 +241,7 @@ export default function AnunciosPage() {
                       <Tooltip content={<ChartTooltip />} />
                       <Bar dataKey="gasto" radius={[4, 4, 0, 0]}>
                         {data.daily_spend.map((_: any, i: number) => (
-                          <Cell key={i} fill={i === data.daily_spend.length - 1 ? '#FFFF00' : '#3B82F6'} />
+                          <Cell key={i} fill={i === data.daily_spend.length - 1 ? ACCENT : '#3B82F6'} />
                         ))}
                       </Bar>
                     </BarChart>
@@ -254,7 +269,7 @@ export default function AnunciosPage() {
                         </td>
                         <td className="px-4 py-3">
                           <span className={cn('text-[11px] font-bold px-2 py-0.5 rounded-md',
-                            c.account_name === 'Mamba 2025' ? 'bg-blue-500/10 text-blue-400' : 'bg-purple-500/10 text-purple-400')}>
+                            c.account_name === contas[0]?.account_name ? 'bg-blue-500/10 text-blue-400' : 'bg-purple-500/10 text-purple-400')}>
                             {c.account_name}
                           </span>
                         </td>

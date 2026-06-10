@@ -43,13 +43,13 @@ body {
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #FFCC00;
+  background: var(--gold-dim);
 }
 
 /* Gold text selection */
 ::selection {
-  background: rgba(255, 204, 0, 0.25);
-  color: #FFCC00;
+  background: rgba(var(--gold-rgb), 0.25);
+  color: var(--gold);
 }
 
 /* Animations */
@@ -95,8 +95,8 @@ body {
 }
 .input-mamba:focus {
   outline: none;
-  border-color: #FFCC00;
-  box-shadow: 0 0 0 2px rgba(255, 204, 0, 0.15);
+  border-color: var(--gold-dim);
+  box-shadow: 0 0 0 2px rgba(var(--gold-rgb), 0.15);
 }
 
 /* Card hover */
@@ -104,8 +104,8 @@ body {
   transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
 }
 .card-hover:hover {
-  border-color: rgba(255, 204, 0, 0.25);
-  box-shadow: 0 0 24px rgba(255, 204, 0, 0.08);
+  border-color: rgba(var(--gold-rgb), 0.25);
+  box-shadow: 0 0 24px rgba(var(--gold-rgb), 0.08);
   transform: translateY(-1px);
 }
 

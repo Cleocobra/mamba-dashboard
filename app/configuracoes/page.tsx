@@ -112,7 +112,7 @@ function UserForm({
           <X className="w-3.5 h-3.5" /> Cancelar
         </button>
         <button onClick={handleSave} disabled={saving}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-mamba-gold text-mamba-black hover:bg-yellow-300 transition-colors cursor-pointer disabled:opacity-50">
+          className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-mamba-gold text-mamba-black hover:brightness-110 transition-all cursor-pointer disabled:opacity-50">
           <Check className="w-3.5 h-3.5" /> {saving ? 'Salvando...' : 'Salvar'}
         </button>
       </div>
@@ -235,7 +235,7 @@ export default function ConfiguracoesPage() {
                 </div>
                 {!showForm && !editUser && (
                   <button onClick={() => setShowForm(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-mamba-gold text-mamba-black hover:bg-yellow-300 transition-colors cursor-pointer">
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-mamba-gold text-mamba-black hover:brightness-110 transition-all cursor-pointer">
                     <Plus className="w-3.5 h-3.5" /> Novo usuário
                   </button>
                 )}

@@ -1,6 +1,7 @@
 const BASE_URL = 'https://api.awsli.com.br/v1'
-const CHAVE_API = process.env.LI_CHAVE_API || 'c9b02688ef5097ab6a26'
-const CHAVE_APLICACAO = process.env.LI_CHAVE_APLICACAO || 'df63ca80-5968-4476-9b43-11189846cb9a'
+// Sem fallback: instância mal configurada deve falhar alto, nunca mostrar dados de outra loja
+const CHAVE_API = process.env.LI_CHAVE_API || ''
+const CHAVE_APLICACAO = process.env.LI_CHAVE_APLICACAO || ''
 
 // Auth via query params (formato correto da Loja Integrada)
 function authParams(): Record<string, string> {
