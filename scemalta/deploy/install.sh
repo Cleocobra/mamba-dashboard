@@ -49,12 +49,13 @@ ask BRAVE_API_KEY     "Chave do Brave Search (opcional)" secret
 ask IG_USER_ID        "IG_USER_ID (opcional; descubra com npm run ig-setup)"
 ask IG_ACCESS_TOKEN   "IG_ACCESS_TOKEN (opcional)" secret
 
-# Caddy (HTTPS automático) só se ninguém estiver usando as portas 80/443
+# Caddy (HTTPS automático) só se ninguém estiver usando as portas 80/443.
+# Se já existe um nginx em container (ex.: leadspanel-nginx-1), o instalador se encaixa nele.
+NGINX_CONTAINER=${NGINX_CONTAINER:-$(docker ps --format '{{.Names}}' | grep -i nginx | head -1)}
 if ss -ltn 2>/dev/null | grep -qE ':(80|443) ' && ! docker ps --format '{{.Names}}' | grep -qx scemalta-caddy; then
-  set_env COMPOSE_PROFILES ""
-  warn "Portas 80/443 já em uso por outro serviço: o Caddy não será ligado."
-  warn "Aponte o seu proxy para http://scemalta-app:3000 (modelo em deploy/nginx-vps-existente.conf)."
-  MODE=proxy
+  set_env COMPOSE_PROFILES ""; MODE=proxy
+  if [ -n "$NGINX_CONTAINER" ]; then ok "Portas 80/443 em uso: vou configurar o nginx existente ($NGINX_CONTAINER)"
+  else warn "Portas 80/443 em uso e nenhum nginx em container encontrado. Aponte o seu proxy para http://scemalta-app:3000 (modelo em deploy/nginx-vps-existente.conf)."; fi
 else
   set_env COMPOSE_PROFILES edge; MODE=edge; ok "Caddy vai cuidar do HTTPS de $DOMAIN e www.$DOMAIN"
 fi
@@ -70,17 +71,69 @@ docker compose up -d --build || die "docker compose falhou (veja acima)."
 for i in $(seq 1 40); do docker exec scemalta-app wget -qO- http://127.0.0.1:3000/ >/dev/null 2>&1 && break; sleep 3; done
 docker exec scemalta-app wget -qO- http://127.0.0.1:3000/ 2>/dev/null | grep -q "SC em Alta" && ok "app no ar" || warn "app ainda não respondeu; veja: docker logs scemalta-app"
 
+step "4b/6 nginx existente"
+HAS_CERT=0
+if [ "$MODE" = proxy ] && [ -n "$NGINX_CONTAINER" ]; then
+  docker network inspect scemalta -f '{{range .Containers}}{{.Name}} {{end}}' | grep -qw "$NGINX_CONTAINER" \
+    || { docker network connect scemalta "$NGINX_CONTAINER" && ok "nginx conectado à rede scemalta"; }
+  mount_of() { docker inspect -f '{{range .Mounts}}{{.Destination}}|{{.Source}}{{"\n"}}{{end}}' "$NGINX_CONTAINER" | awk -F'|' -v d="$1" '$1==d{print $2; exit}'; }
+  CONFD_HOST=$(mount_of /etc/nginx/conf.d)
+  docker exec "$NGINX_CONTAINER" test -s "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" 2>/dev/null && HAS_CERT=1
+  write_conf() {  # write_conf https|http
+    local tmp; tmp=$(mktemp)
+    if [ "$1" = https ]; then sed "s/scemalta\.com\.br/$DOMAIN/g" deploy/nginx-vps-existente.conf > "$tmp"
+    else cat > "$tmp" <<NGX
+# $DOMAIN (HTTP provisório até o certificado sair) → container scemalta-app
+server {
+    listen 80;
+    server_name $DOMAIN www.$DOMAIN;
+    location /.well-known/acme-challenge/ { root /var/www/certbot; }
+    location / {
+        proxy_pass         http://scemalta-app:3000;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              \$host;
+        proxy_set_header   X-Real-IP         \$remote_addr;
+        proxy_set_header   X-Forwarded-For   \$proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto \$scheme;
+        proxy_read_timeout 600s;
+    }
+}
+NGX
+    fi
+    if [ -n "$CONFD_HOST" ]; then cp "$tmp" "$CONFD_HOST/scemalta.conf"
+    else docker cp "$tmp" "$NGINX_CONTAINER:/etc/nginx/conf.d/scemalta.conf"; warn "conf.d não é bind mount: copiei para dentro do container (se ele for recriado, rode o script de novo)."; fi
+    rm -f "$tmp"; docker exec "$NGINX_CONTAINER" mkdir -p /var/www/certbot 2>/dev/null || true
+    if docker exec "$NGINX_CONTAINER" nginx -t >/dev/null 2>&1; then docker exec "$NGINX_CONTAINER" nginx -s reload && ok "nginx recarregado ($1)"
+    else err "nginx -t falhou; removendo o arquivo para não derrubar os outros sites"; docker exec "$NGINX_CONTAINER" rm -f /etc/nginx/conf.d/scemalta.conf; [ -n "$CONFD_HOST" ] && rm -f "$CONFD_HOST/scemalta.conf"; docker exec "$NGINX_CONTAINER" nginx -t; return 1; fi
+  }
+  if [ "$HAS_CERT" = 1 ]; then write_conf https; else write_conf http; fi
+  if [ "$HAS_CERT" != 1 ] && [ "$DNS_OK" = 1 ]; then
+    LE_EMAIL=$(get_env LE_EMAIL); [ -n "$LE_EMAIL" ] || { read -r -p "E-mail para avisos do Let's Encrypt: " LE_EMAIL; set_env LE_EMAIL "$LE_EMAIL"; }
+    docker run --rm --volumes-from "$NGINX_CONTAINER" certbot/certbot certonly --webroot -w /var/www/certbot \
+      -d "$DOMAIN" -d "www.$DOMAIN" --non-interactive --agree-tos -m "$LE_EMAIL" \
+      && docker exec "$NGINX_CONTAINER" test -s "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" && HAS_CERT=1
+    if [ "$HAS_CERT" = 1 ]; then
+      write_conf https && ok "HTTPS ativo"
+      crontab -l 2>/dev/null | grep -q "scemalta-cert" || (crontab -l 2>/dev/null; echo "17 3 * * * docker run --rm --volumes-from $NGINX_CONTAINER certbot/certbot renew -q && docker exec $NGINX_CONTAINER nginx -s reload # scemalta-cert") | crontab -
+    else warn "não consegui emitir o certificado; o site fica em HTTP por enquanto. Me mande o $LOG que eu ajusto."; fi
+  elif [ "$HAS_CERT" != 1 ]; then warn "certificado fica para quando o DNS apontar para cá (rode o script de novo)."; fi
+  [ "$HAS_CERT" = 1 ] && set_env SCEMALTA_PUBLIC_URL "https://$DOMAIN" || set_env SCEMALTA_PUBLIC_URL "http://$DOMAIN"
+  docker compose up -d app >/dev/null 2>&1 || true   # relê SCEMALTA_PUBLIC_URL
+elif [ "$MODE" = proxy ]; then warn "sem nginx em container: configure o seu proxy com deploy/nginx-vps-existente.conf"
+else ok "não se aplica (Caddy ativo)"; fi
+
 step "5/6 Agendador"
 docker ps --format '{{.Names}}' | grep -qx scemalta-scheduler && ok "agendador ativo ($(get_env SCEMALTA_RUN_HOUR)h gerar, $(get_env SCEMALTA_PUBLISH_HOUR)h publicar, Brasília)" || warn "container scemalta-scheduler não está rodando"
 
 step "6/6 Resumo"
 echo "================================================================"
-echo " Site:      https://$DOMAIN   $([ "$DNS_OK" = 1 ] || echo '(depois do DNS propagar)')"
-echo " Painel:    https://$DOMAIN/admin   usuário: $(get_env ADMIN_USER)   senha: $(get_env ADMIN_PASSWORD)"
-echo " Gerar já:  curl -X POST -H 'Authorization: Bearer $(get_env CRON_SECRET)' https://$DOMAIN/api/run"
+SCHEME=$([ "$MODE" = edge ] || [ "$HAS_CERT" = 1 ] && echo https || echo http)
+echo " Site:      $SCHEME://$DOMAIN   $([ "$DNS_OK" = 1 ] || echo '(depois do DNS propagar)')"
+echo " Painel:    $SCHEME://$DOMAIN/admin   usuário: $(get_env ADMIN_USER)   senha: $(get_env ADMIN_PASSWORD)"
+echo " Gerar já:  curl -X POST -H 'Authorization: Bearer $(get_env CRON_SECRET)' $SCHEME://$DOMAIN/api/run"
 [ -z "$(get_env ANTHROPIC_API_KEY)" ] && echo " FALTA:     ANTHROPIC_API_KEY no .env → depois: docker compose up -d"
 [ -z "$(get_env IG_ACCESS_TOKEN)" ]   && echo " Instagram: npm run ig-setup … → IG_* no .env → docker compose up -d"
-[ "$MODE" = proxy ] && echo " Proxy:     configure o nginx com deploy/nginx-vps-existente.conf"
+[ "$MODE" = proxy ] && [ -z "$NGINX_CONTAINER" ] && echo " Proxy:     configure o seu proxy com deploy/nginx-vps-existente.conf"
 [ "$DNS_OK" = 1 ] || echo " DNS:       aponte $DOMAIN e www.$DOMAIN para $MY_IP"
 echo " Log:       $LOG"
 echo "================================================================"
