@@ -35,20 +35,43 @@ separa oportunidades para empresários, gera os cards do carrossel e publica no 
 Veja `.env.local.example`, seção "SC em Alta". Obrigatórias para rodar de ponta a ponta:
 `ANTHROPIC_API_KEY`, `CRON_SECRET`, `SCEMALTA_PUBLIC_URL`, `IG_USER_ID`, `IG_ACCESS_TOKEN`.
 
-## Colocar no ar (ordem)
+## Colocar no ar (um comando)
 
-1. **DNS** (painel da Cobrahosting, zona `scemalta.com.br`): registro `A` para `@` e para `www`
-   apontando para o IP do VPS onde roda o docker do dashboard. Confira com `dig +short scemalta.com.br`.
-2. **nginx**: adicione `docs/nginx-scemalta.conf` no nginx central, gere o certificado
-   (`certbot certonly --webroot -w /var/www/certbot -d scemalta.com.br -d www.scemalta.com.br`)
-   e recarregue (`nginx -s reload`).
-3. **.env** do container: variáveis da seção "SC em Alta" de `.env.local.example`
-   (`SCEMALTA_HOST=scemalta.com.br`, `SCEMALTA_PUBLIC_URL=https://scemalta.com.br`, `CRON_SECRET`, `ANTHROPIC_API_KEY`).
-4. **Deploy**: merge deste PR, depois no VPS `git pull && docker compose build web && docker compose up -d web`.
-   Teste: `https://scemalta.com.br` deve mostrar "Em breve" e `/login` deve dar 404 nesse host.
-5. **Primeira edição** pelo painel `/noticias` do dashboard ("Gerar edição de hoje"), sem Instagram ainda.
-6. **Instagram**: seção abaixo. Só depois preencha `IG_USER_ID` / `IG_ACCESS_TOKEN` e reinicie o container.
-7. **Cron**: seção "Cron no VPS".
+Você só precisa de duas coisas fora do servidor: o **DNS** apontando para o VPS e uma
+**chave da Anthropic** (console.anthropic.com → API keys). O resto o instalador faz.
+
+```bash
+# no VPS, dentro do clone do mamba-dashboard
+git pull
+sudo bash deploy/scemalta-vps.sh
+```
+
+O instalador (`deploy/scemalta-vps.sh`) é idempotente: rode de novo sempre que algo mudar
+(DNS propagou, chegou o token do Instagram). Ele:
+
+1. atualiza o código;
+2. preenche o `.env` (pergunta a chave da Anthropic; gera o `CRON_SECRET`; Instagram e Brave são opcionais);
+3. confere se o DNS já aponta para o servidor;
+4. instala o `server` no nginx central (`leadspanel-nginx-1`) e o conecta à rede `mamba_proxy`;
+5. emite o certificado Let's Encrypt (quando o DNS estiver certo) e agenda a renovação;
+6. faz o build e sobe o container;
+7. instala o cron das 6h (gerar) e 8h (publicar) no horário de Brasília;
+8. testa o site e imprime o resumo. Tudo fica em `deploy/scemalta-install.log`.
+
+Se o nginx central tiver outro nome: `NGINX_CONTAINER=nome sudo bash deploy/scemalta-vps.sh`.
+Se o certificado não sair automaticamente, o site fica em HTTP e o log diz o motivo.
+
+### Instagram em três passos
+
+1. Crie a conta **@scemalta** no Instagram, mude para conta **Profissional** (Business ou Creator)
+   e vincule a uma Página do Facebook (pode ser uma Página nova "SC em Alta").
+2. Em developers.facebook.com crie um app tipo "Empresa" e, no Explorador da Graph API, gere um
+   token com `pages_show_list`, `pages_read_engagement`, `instagram_basic`, `instagram_content_publish`.
+3. Rode o helper, que descobre o `IG_USER_ID` e gera um token de Página **que não expira**:
+   ```bash
+   node scripts/scemalta-ig-setup.mjs --app-id ID --app-secret SEGREDO --token TOKEN_CURTO
+   ```
+   Cole as duas linhas no `.env` e rode `sudo bash deploy/scemalta-vps.sh` de novo.
 
 ## Instagram: o que precisa existir
 
