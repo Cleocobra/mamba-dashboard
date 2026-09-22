@@ -35,6 +35,21 @@ separa oportunidades para empresários, gera os cards do carrossel e publica no 
 Veja `.env.local.example`, seção "SC em Alta". Obrigatórias para rodar de ponta a ponta:
 `ANTHROPIC_API_KEY`, `CRON_SECRET`, `SCEMALTA_PUBLIC_URL`, `IG_USER_ID`, `IG_ACCESS_TOKEN`.
 
+## Colocar no ar (ordem)
+
+1. **DNS** (painel da Cobrahosting, zona `scemalta.com.br`): registro `A` para `@` e para `www`
+   apontando para o IP do VPS onde roda o docker do dashboard. Confira com `dig +short scemalta.com.br`.
+2. **nginx**: adicione `docs/nginx-scemalta.conf` no nginx central, gere o certificado
+   (`certbot certonly --webroot -w /var/www/certbot -d scemalta.com.br -d www.scemalta.com.br`)
+   e recarregue (`nginx -s reload`).
+3. **.env** do container: variáveis da seção "SC em Alta" de `.env.local.example`
+   (`SCEMALTA_HOST=scemalta.com.br`, `SCEMALTA_PUBLIC_URL=https://scemalta.com.br`, `CRON_SECRET`, `ANTHROPIC_API_KEY`).
+4. **Deploy**: merge deste PR, depois no VPS `git pull && docker compose build web && docker compose up -d web`.
+   Teste: `https://scemalta.com.br` deve mostrar "Em breve" e `/login` deve dar 404 nesse host.
+5. **Primeira edição** pelo painel `/noticias` do dashboard ("Gerar edição de hoje"), sem Instagram ainda.
+6. **Instagram**: seção abaixo. Só depois preencha `IG_USER_ID` / `IG_ACCESS_TOKEN` e reinicie o container.
+7. **Cron**: seção "Cron no VPS".
+
 ## Instagram: o que precisa existir
 
 1. Conta do Instagram **Business** ou **Creator**, vinculada a uma Página do Facebook.
@@ -54,17 +69,19 @@ Limites: até 10 imagens por carrossel, legenda até 2.200 caracteres, dezenas d
 
 ```cron
 # SC em Alta — gerar rascunho às 6h e publicar às 8h (horário do servidor em America/Sao_Paulo)
-0 6 * * * curl -s -X POST -H "Authorization: Bearer SEU_CRON_SECRET" https://dashboard.mamba.army/api/scemalta/run
-0 8 * * * curl -s -X POST -H "Authorization: Bearer SEU_CRON_SECRET" https://dashboard.mamba.army/api/scemalta/publish
+0 6 * * * curl -s -X POST -H "Authorization: Bearer SEU_CRON_SECRET" https://scemalta.com.br/api/scemalta/run
+0 8 * * * curl -s -X POST -H "Authorization: Bearer SEU_CRON_SECRET" https://scemalta.com.br/api/scemalta/publish
 ```
 
 Se o servidor estiver em UTC, use `0 9` e `0 11`.
 
 ## nginx: domínio do site
 
-Adicione um `server` para `scemalta.com.br` apontando para o mesmo container
-(`proxy_pass http://mamba-dashboard:3000`). Com `SCEMALTA_HOST=scemalta.com.br`, o middleware
-serve o site público na raiz desse host e bloqueia o resto do dashboard nele.
+Exemplo pronto em `docs/nginx-scemalta.conf`: um `server` para `scemalta.com.br` com
+`proxy_pass http://mamba-dashboard:3000` e `proxy_set_header Host $host`. Com
+`SCEMALTA_HOST=scemalta.com.br`, o middleware serve o site público na raiz desse host e
+bloqueia o resto do dashboard nele. As rotas `/api/scemalta/*` continuam acessíveis
+(o cron pode chamar pelo domínio do site).
 
 ## Testar sem cron
 
