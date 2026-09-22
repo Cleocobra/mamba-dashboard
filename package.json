@@ -6,19 +6,24 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "scemalta:smoke": "npx tsx scripts/scemalta-smoke.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.127.0",
     "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",
     "date-fns": "^3.6.0",
+    "fast-xml-parser": "^5.11.1",
     "ioredis": "^5.11.1",
     "jose": "^6.2.2",
     "lucide-react": "^0.408.0",
     "next": "^16.2.4",
     "react": "^18",
     "react-dom": "^18",
-    "recharts": "^2.12.7"
+    "recharts": "^2.12.7",
+    "sharp": "^0.35.4",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
