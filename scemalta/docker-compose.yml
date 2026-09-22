@@ -1,0 +1,79 @@
+# SC em Alta — stack completa: app + redis + agendador (+ caddy com HTTPS automático).
+#
+#   VPS próprio (portas 80/443 livres):  COMPOSE_PROFILES=edge no .env  → docker compose up -d --build
+#   VPS com nginx/outro proxy na 80/443: COMPOSE_PROFILES= (vazio)      → docker compose up -d --build
+#                                        e aponte o proxy para http://scemalta-app:3000 (rede "scemalta")
+services:
+  app:
+    build: .
+    image: scemalta
+    container_name: scemalta-app
+    restart: always
+    env_file: .env
+    environment:
+      - NODE_ENV=production
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks: [scemalta]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  redis:
+    image: redis:7-alpine
+    container_name: scemalta-redis
+    restart: always
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: [scemalta_redis:/data]
+    networks: [scemalta]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Agendador embutido: 06:00 gera a edição, 08:00 publica (horário de Brasília).
+  scheduler:
+    image: alpine:3.20
+    container_name: scemalta-scheduler
+    restart: always
+    environment:
+      - TZ=America/Sao_Paulo
+      - CRON_SECRET=${CRON_SECRET}
+      - RUN_HOUR=${SCEMALTA_RUN_HOUR:-6}
+      - PUBLISH_HOUR=${SCEMALTA_PUBLISH_HOUR:-8}
+    volumes: [./deploy/scheduler.sh:/scheduler.sh:ro]
+    command: ["sh", "/scheduler.sh"]
+    depends_on: [app]
+    networks: [scemalta]
+
+  # HTTPS automático (Let's Encrypt) para DOMAIN e www.DOMAIN.
+  caddy:
+    image: caddy:2-alpine
+    container_name: scemalta-caddy
+    restart: always
+    profiles: [edge]
+    ports: ["80:80", "443:443", "443:443/udp"]
+    environment:
+      - DOMAIN=${DOMAIN}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - scemalta_caddy_data:/data
+      - scemalta_caddy_config:/config
+    depends_on: [app]
+    networks: [scemalta]
+
+volumes:
+  scemalta_redis:
+  scemalta_caddy_data:
+  scemalta_caddy_config:
+
+networks:
+  scemalta:
+    name: scemalta

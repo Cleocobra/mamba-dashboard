@@ -37,9 +37,3 @@ yarn-error.log*
 next-env.d.ts
 
 .vercel
-
-# SC em Alta — saída do teste local de cards
-.scemalta-smoke/
-
-# SC em Alta — log do instalador
-deploy/*.log

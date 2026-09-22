@@ -10,7 +10,7 @@ import {
 import { cn } from '@/lib/utils'
 
 // ── Types ──────────────────────────────────────────────────────────────────
-type Permission = 'dashboard' | 'pedidos' | 'fluxo' | 'anuncios' | 'configuracoes' | 'produtos' | 'noticias'
+type Permission = 'dashboard' | 'pedidos' | 'fluxo' | 'anuncios' | 'configuracoes' | 'produtos'
 interface SafeUser {
   id: string; username: string; role: string
   permissions: Permission[]; createdAt: string
@@ -22,7 +22,6 @@ const PERMS: { key: Permission; label: string }[] = [
   { key: 'produtos',      label: 'Produtos Vendidos'},
   { key: 'fluxo',         label: 'Fluxo de Caixa'  },
   { key: 'anuncios',      label: 'Meta Ads'         },
-  { key: 'noticias',      label: 'SC em Alta'       },
   { key: 'configuracoes', label: 'Configurações'    },
 ]
 

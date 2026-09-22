@@ -1,6 +1,6 @@
 import { SignJWT, jwtVerify } from 'jose'
 
-export type Permission = 'dashboard' | 'pedidos' | 'fluxo' | 'anuncios' | 'configuracoes' | 'produtos' | 'noticias'
+export type Permission = 'dashboard' | 'pedidos' | 'fluxo' | 'anuncios' | 'configuracoes' | 'produtos'
 export type UserRole   = 'admin' | 'user'
 
 export interface UserPayload {

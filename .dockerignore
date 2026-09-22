@@ -9,3 +9,6 @@ npm-debug.log*
 .DS_Store
 *.tsbuildinfo
 README.md
+
+# projeto irmão (SC em Alta) — não entra na imagem do dashboard
+scemalta/
