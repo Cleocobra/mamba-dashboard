@@ -17,7 +17,7 @@ step() { printf "\n\033[1;36m== %s\033[0m\n" "$*"; }
 die()  { err "$*"; exit 1; }
 
 [ -f docker-compose.yml ] && [ -f package.json ] || die "Rode de dentro da pasta scemalta/ (onde está o docker-compose.yml)."
-[ "$(id -u)" = 0 ] || die "Rode com sudo: sudo bash deploy/install.sh"
+[ "$(id -u)" = 0 ] || die "Rode como root (ou com sudo): sudo bash deploy/install.sh"
 mkdir -p deploy; exec > >(tee -a "$LOG") 2>&1; echo "---- $(date -Is) início ----"
 
 step "1/6 Docker"

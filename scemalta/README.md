@@ -31,17 +31,29 @@ Sem intervenção, publica às 8h. Rejeitar no painel cancela o dia. Com
 | `deploy/` | `install.sh` (um comando), `Caddyfile` (HTTPS automático), `scheduler.sh`, nginx para VPS já ocupado. |
 | `scripts/` | `smoke.ts` (parser + cards sem rede), `ig-setup.mjs` (token e id do Instagram). |
 
+## Entrar no VPS (Windows)
+
+Tudo abaixo roda **dentro do servidor**, não no seu computador. No PowerShell:
+
+```powershell
+ssh root@177.136.230.12
+```
+
+Na primeira vez ele pergunta se confia no servidor: digite `yes`. Depois pede a senha do root
+(a que está no painel do VPS na Cobrahosting). A senha não aparece enquanto você digita: é normal.
+Quando o prompt mudar para algo como `root@vps:~#`, você está no servidor.
+
 ## Rodar em um VPS (recomendado)
 
 Qualquer VPS Linux com 1 vCPU / 1 GB serve para começar. Três passos:
 
 1. **DNS**: registro `A` de `scemalta.com.br` e `www` apontando para o IP do VPS.
 2. **Chave da Anthropic**: crie em console.anthropic.com → API keys.
-3. **No VPS**:
+3. **Dentro do VPS**, um comando só (instala git se faltar, baixa o projeto em `/opt/scemalta-src` e roda o instalador):
    ```bash
-   git clone https://github.com/Cleocobra/mamba-dashboard.git && cd mamba-dashboard/scemalta
-   sudo bash deploy/install.sh
+   bash -c "$(curl -fsSL https://raw.githubusercontent.com/Cleocobra/mamba-dashboard/main/scemalta/deploy/bootstrap.sh)"
    ```
+   Para atualizar depois, rode o mesmo comando de novo.
    O instalador instala o Docker se faltar, cria o `.env` (pergunta a chave; gera senha do painel e
    segredo do agendador), sobe app + Redis + agendador + Caddy (HTTPS automático) e imprime o
    resumo com a senha do painel. Pode rodar de novo a qualquer momento.
