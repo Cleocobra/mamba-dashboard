@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getEdition, getImage, saveImage } from '@/lib/store'
 import { cardCountFor, renderCard } from '@/lib/render'
-import { isValidDate } from '@/lib/pipeline'
+import { isValidId } from '@/lib/pipeline'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic'
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ date: string; file: string }> }) {
   const { date, file } = await params
   const m = /^(\d{1,2})\.jpe?g$/i.exec(file)
-  if (!isValidDate(date) || !m) return new NextResponse('Not found', { status: 404 })
+  if (!isValidId(date) || !m) return new NextResponse('Not found', { status: 404 })
   const n = Number(m[1])
 
   let jpeg = await getImage(date, n)

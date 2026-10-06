@@ -3,7 +3,8 @@
 
 import type { NextRequest } from 'next/server'
 import { collect } from './sources'
-import { editDay } from './editor'
+import { editDay, editSingle } from './editor'
+import { fetchArticle } from './article'
 import { cardCountFor, renderCard } from './render'
 import { instagramConfigured, publishToInstagram } from './instagram'
 import { getEdition, saveEdition, saveImage } from './store'
@@ -16,6 +17,13 @@ export function todaySP(): string {
 }
 
 export const isValidDate = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s)
+// id de edição: diária ('2026-10-06') ou post avulso ('2026-10-06-extra-153012')
+export const isValidId   = (s: string) => /^\d{4}-\d{2}-\d{2}(-extra-\d{4,6})?$/.test(s)
+
+export function nowHHMMSS(): string {
+  return new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
+    .format(new Date()).replace(/:/g, '')
+}
 
 // ── URLs públicas ──────────────────────────────────────────────────────────
 export function publicBaseUrl(): string {
@@ -23,7 +31,7 @@ export function publicBaseUrl(): string {
   return base.replace(/\/$/, '')
 }
 
-export const imageUrl = (date: string, n: number) => `${publicBaseUrl()}/api/img/${date}/${n}.jpg`
+export const imageUrl = (id: string, n: number) => `${publicBaseUrl()}/api/img/${id}/${n}.jpg`
 
 export function buildCaption(e: Edition): string {
   const tags = e.hashtags.map(h => `#${h}`).join(' ')
@@ -57,7 +65,7 @@ export async function generateEdition(opts: { date?: string; force?: boolean } =
 
   const now = new Date().toISOString()
   const base: Edition = {
-    date, status: 'draft', createdAt: existing?.createdAt ?? now, updatedAt: now,
+    id: date, kind: 'diaria', date, status: 'draft', createdAt: existing?.createdAt ?? now, updatedAt: now,
     manchete: '', noticias: [], oportunidades: [], legenda: '', hashtags: [], rawCount: 0, cardCount: 0,
   }
 
@@ -88,8 +96,8 @@ export async function renderAndStoreCards(e: Edition): Promise<string[]> {
   const total = cardCountFor(e)
   const urls: string[] = []
   for (let n = 0; n < total; n++) {
-    await saveImage(e.date, n, await renderCard(e, n))
-    urls.push(imageUrl(e.date, n))
+    await saveImage(e.id, n, await renderCard(e, n))
+    urls.push(imageUrl(e.id, n))
   }
   e.cardCount = total
   return urls
@@ -101,11 +109,11 @@ export interface PublishOptions {
   skipInstagram?: boolean
 }
 
-export async function publishEdition(date: string, opts: PublishOptions = {}): Promise<{ edition: Edition; skipped?: string }> {
-  const e = await getEdition(date)
-  if (!e) throw new Error(`Edição ${date} não existe.`)
+export async function publishEdition(id: string, opts: PublishOptions = {}): Promise<{ edition: Edition; skipped?: string }> {
+  const e = await getEdition(id)
+  if (!e) throw new Error(`Edição ${id} não existe.`)
   if (e.status === 'published') return { edition: e, skipped: 'já publicada' }
-  if (e.status === 'error' || e.noticias.length === 0) throw new Error(`Edição ${date} não está pronta (${e.status}).`)
+  if (e.status === 'error' || e.noticias.length === 0) throw new Error(`Edição ${id} não está pronta (${e.status}).`)
 
   if (opts.fromCron) {
     if (e.status === 'rejected') return { edition: e, skipped: 'rejeitada no painel' }
@@ -127,4 +135,23 @@ export async function publishEdition(date: string, opts: PublishOptions = {}): P
     await saveEdition(e)
     throw err
   }
+}
+
+// ── Post avulso a partir de um link (WhatsApp ou painel) ───────────────────
+export async function createExtraEdition(opts: { url: string; from?: string; nome?: string }): Promise<Edition> {
+  const article = await fetchArticle(opts.url)
+  const date = todaySP()
+  const id = `${date}-extra-${nowHHMMSS()}`
+  const ed = await editSingle(date, article)
+  const now = new Date().toISOString()
+  const e: Edition = {
+    id, kind: 'extra', date, status: 'draft', createdAt: now, updatedAt: now,
+    manchete: ed.manchete, noticias: [ed.noticia], oportunidades: ed.oportunidade ? [ed.oportunidade] : [],
+    legenda: ed.legenda, hashtags: ed.hashtags, rawCount: 1, cardCount: 0,
+    origem: { via: opts.from ? 'whatsapp' : 'painel', de: opts.from, nome: opts.nome, url: article.url },
+  }
+  e.cardCount = cardCountFor(e)
+  await saveEdition(e)
+  await renderAndStoreCards(e)   // pré-renderiza para a prévia chegar rápido
+  return saveEdition(e)
 }

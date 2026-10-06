@@ -16,7 +16,7 @@ export function EditionView({ edition: e }: { edition: Edition }) {
   return (
     <article className="space-y-10">
       <header className="space-y-3">
-        <p className="text-xs font-black uppercase tracking-[0.2em] text-ui-accent">{formatLongDate(e.date)}</p>
+        <p className="text-xs font-black uppercase tracking-[0.2em] text-ui-accent">{formatLongDate(e.date)}{e.kind === 'extra' && ' · Extra'}</p>
         <h1 className="text-3xl font-black leading-tight tracking-tight md:text-4xl">{e.manchete}</h1>
         {e.instagram?.permalink && (
           <a href={e.instagram.permalink} target="_blank" rel="noreferrer" className="inline-block text-sm font-semibold text-ui-accent hover:underline">
@@ -30,7 +30,7 @@ export function EditionView({ edition: e }: { edition: Edition }) {
           // eslint-disable-next-line @next/next/no-img-element
           <img
             key={n}
-            src={`/api/img/${e.date}/${n}.jpg?v=${encodeURIComponent(e.updatedAt)}`}
+            src={`/api/img/${e.id}/${n}.jpg?v=${encodeURIComponent(e.updatedAt)}`}
             alt={n === 0 ? e.manchete : `Card ${n}`}
             width={1080}
             height={1350}
