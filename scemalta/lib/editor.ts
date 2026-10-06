@@ -136,3 +136,64 @@ export async function editDay(date: string, raw: RawItem[]): Promise<EditorialRe
     model: response.model,
   }
 }
+
+// ── Edição de UMA matéria (enviada por link, ex.: WhatsApp) ────────────────
+import type { Article } from './article'
+
+const ExtraSchema = z.object({
+  manchete:     z.string().describe('chamada da capa, até 60 caracteres, sem ponto final'),
+  titulo:       z.string().describe('título curto e claro, até 90 caracteres'),
+  resumo:       z.string().describe('3 a 4 frases com as próprias palavras, sem copiar trechos da fonte'),
+  categoria:    z.enum(CATEGORIAS),
+  oportunidade: z.object({
+    titulo:    z.string().describe('até 70 caracteres'),
+    descricao: z.string().describe('1 a 2 frases: o que é, para quem serve e prazo se houver'),
+    tipo:      z.enum(TIPOS),
+  }).nullable().describe('null se a matéria não traz oportunidade concreta para quem empreende'),
+  legenda:      z.string().describe('legenda do Instagram, até 1200 caracteres, sem hashtags'),
+  hashtags:     z.array(z.string()).describe('6 a 10 hashtags sem o símbolo # e sem espaços'),
+})
+
+export interface ExtraResult {
+  manchete: string; noticia: NewsItem; oportunidade: Opportunity | null; legenda: string; hashtags: string[]; model: string
+}
+
+const SYSTEM_EXTRA = `Você é o editor-chefe do "SC em Alta", veículo digital diário sobre Santa Catarina, voltado a
+catarinenses e, em especial, empresários e empreendedores do estado.
+
+Você recebe UMA matéria (título, descrição, veículo e texto) enviada pela equipe para virar um post avulso.
+Sua tarefa: reescrever a notícia em 3 a 4 frases com as suas próprias palavras, sem copiar frases da fonte,
+em tom claro, direto e neutro, com números e datas quando houver; dar um título curto; classificar a categoria;
+dizer se há uma oportunidade concreta para quem empreende em SC (edital, licitação, evento, investimento,
+indicador), senão devolver null; escrever a manchete da capa (até 60 caracteres, sem ponto final, sem clickbait);
+escrever a legenda do Instagram (comece com a manchete, 2 a 4 linhas de contexto, termine convidando para o
+link na bio; sem hashtags) e listar 6 a 10 hashtags sem o símbolo #.
+
+Regras: use apenas o que está na matéria; não invente fatos, números ou nomes. Português do Brasil.`
+
+export async function editSingle(date: string, article: Article): Promise<ExtraResult> {
+  if (!process.env.ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY não configurada.')
+  const client = new Anthropic()
+  const user = `Data: ${date}\nVeículo: ${article.source}\nURL: ${article.url}\nTítulo: ${article.title}\nDescrição: ${article.description}\n\nTexto:\n${article.text}`
+  const response = await client.beta.messages.parse({
+    model:      MODEL,
+    max_tokens: 8000,
+    betas:      ['server-side-fallback-2026-07-01'],
+    fallbacks:  'default',
+    system:     [{ type: 'text', text: SYSTEM_EXTRA, cache_control: { type: 'ephemeral' } }],
+    messages:   [{ role: 'user', content: user }],
+    output_config: { format: betaZodOutputFormat(ExtraSchema) },
+  })
+  if (response.stop_reason === 'refusal') throw new Error(`O modelo recusou a edição (${response.stop_details?.category ?? 'sem categoria'}).`)
+  if (response.stop_reason === 'max_tokens') throw new Error('Resposta do modelo cortada por max_tokens.')
+  const d = response.parsed_output
+  if (!d) throw new Error('Não foi possível interpretar a resposta do modelo.')
+  return {
+    manchete: d.manchete.trim().replace(/\.$/, '').slice(0, 80),
+    noticia:  { titulo: d.titulo.trim(), resumo: d.resumo.trim(), categoria: d.categoria, fonte: article.source, link: article.url },
+    oportunidade: d.oportunidade ? { ...d.oportunidade, fonte: article.source, link: article.url } : null,
+    legenda:  d.legenda.trim().slice(0, 1800),
+    hashtags: Array.from(new Set(d.hashtags.map(h => h.replace(/^#/, '').replace(/\s+/g, '')).filter(Boolean))).slice(0, 12),
+    model:    response.model,
+  }
+}
