@@ -4,8 +4,8 @@ import { verifyToken } from '@/lib/auth'
 // ── Mambinha (mascote do Fluxo) — por enquanto só para o Cleo (dono) ───────
 // Lista de usuários que veem a Mambinha. Pode ser trocada sem mexer no código
 // com a env MAMBINHA_USUARIOS (separados por vírgula). Comparação ignora
-// maiúsculas e acentos ("Cléo" = "cleo").
-const PADRAO = ['cleo']
+// maiúsculas e acentos.
+const PADRAO = ['cleo@cobra.art.br']
 
 const normalizar = (s: string) =>
   s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase()
