@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken } from '@/lib/auth'
 
-// ── Mambinha (mascote do Fluxo) — por enquanto só para a Cléo ─────────────
+// ── Mambinha (mascote do Fluxo) — por enquanto só para o Cleo (dono) ───────
 // Lista de usuários que veem a Mambinha. Pode ser trocada sem mexer no código
 // com a env MAMBINHA_USUARIOS (separados por vírgula). Comparação ignora
 // maiúsculas e acentos ("Cléo" = "cleo").
-const PADRAO = ['cleo', 'cleocobra']
+const PADRAO = ['cleo']
 
 const normalizar = (s: string) =>
-  s.normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase()
+  s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase()
 
 function usuariosLiberados(): string[] {
   const env = process.env.MAMBINHA_USUARIOS
