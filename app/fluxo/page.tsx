@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import dynamic from 'next/dynamic'
 import Sidebar from '@/components/Sidebar'
 import Header from '@/components/Header'
 import {
@@ -14,6 +15,10 @@ import {
 } from 'lucide-react'
 import { formatBRL, formatDate } from '@/lib/utils'
 import { cn } from '@/lib/utils'
+import type { EventoMambinha } from '@/components/Mambinha'
+
+// Mascote — carregada à parte; só aparece para quem /api/mambinha liberar
+const Mambinha = dynamic(() => import('@/components/Mambinha'), { ssr: false })
 
 interface Lancamento {
   id: string
@@ -67,6 +72,7 @@ export default function FluxoPage() {
   const [dataFimFluxo,     setDataFimFluxo]     = useState('')
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [eventoMambinha, setEventoMambinha] = useState<EventoMambinha | null>(null)
 
   const [form, setForm] = useState({
     tipo: 'saida' as 'entrada' | 'saida',
@@ -210,6 +216,7 @@ export default function FluxoPage() {
     const updated = [novo, ...lancamentos]
     setLancamentos(updated)
     persistir(updated, saldoInicial)
+    setEventoMambinha({ tipo: novo.tipo, valor: novo.valor, nonce: Date.now() })
     setForm({ tipo: 'saida', descricao: '', valor: '', data: new Date().toISOString().split('T')[0], categoria: 'Outros' })
     setShowForm(false)
   }
@@ -218,6 +225,7 @@ export default function FluxoPage() {
     const updated = lancamentos.filter(l => l.id !== id)
     setLancamentos(updated)
     persistir(updated, saldoInicial)
+    setEventoMambinha({ tipo: 'remocao', nonce: Date.now() })
   }
 
   const handleSalvarSaldo = () => {
@@ -585,6 +593,15 @@ export default function FluxoPage() {
             )}
           </div>
 
+          <Mambinha
+            saldoAtual={saldoAtual}
+            isLoading={isLoading}
+            isSaving={isSaving}
+            saveError={saveError}
+            evento={eventoMambinha}
+            periodoLabel={periodoFluxo === 'tudo' ? 'Todo o período' : chartTitle}
+            lancamentos={lancamentosFiltrados}
+          />
         </main>
       </div>
     </div>
