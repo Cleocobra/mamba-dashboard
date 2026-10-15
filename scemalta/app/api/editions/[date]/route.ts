@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { authorize, isValidDate } from '@/lib/pipeline'
+import { authorize, isValidId } from '@/lib/pipeline'
 import { deleteImages, getEdition, saveEdition } from '@/lib/store'
 import { cardCountFor } from '@/lib/render'
 import { MAX_CARDS, type Edition } from '@/lib/types'
@@ -45,14 +45,15 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
 export async function PUT(req: NextRequest, { params }: Ctx) {
   if (!(await authorize(req))) return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 })
   const { date } = await params
-  if (!isValidDate(date)) return NextResponse.json({ error: 'Data inválida.' }, { status: 400 })
+  if (!isValidId(date)) return NextResponse.json({ error: 'Id inválido.' }, { status: 400 })
   const body = await req.json().catch(() => null) as Partial<Edition> | null
   if (!body || !Array.isArray(body.noticias) || typeof body.manchete !== 'string') {
     return NextResponse.json({ error: 'Corpo inválido: manchete e noticias são obrigatórios.' }, { status: 400 })
   }
   const now = new Date().toISOString()
   const edition: Edition = {
-    date, status: body.status && body.status !== 'published' ? body.status : 'draft',
+    id: date, kind: date.includes('-extra-') ? 'extra' : 'diaria', date: date.slice(0, 10),
+    status: body.status && body.status !== 'published' ? body.status : 'draft',
     createdAt: now, updatedAt: now,
     manchete: body.manchete, noticias: body.noticias.slice(0, 5), oportunidades: (body.oportunidades ?? []).slice(0, 4),
     legenda: body.legenda ?? '', hashtags: body.hashtags ?? [], rawCount: body.rawCount ?? 0, cardCount: 0,

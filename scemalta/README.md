@@ -21,11 +21,12 @@ Sem intervenção, publica às 8h. Rejeitar no painel cancela o dia. Com
 |---|---|
 | `app/(site)` | Site público: home com a edição do dia e histórico, página por data. |
 | `app/admin` | Painel (login básico do navegador): gerar, editar, aprovar, rejeitar, publicar, prévia dos cards. |
-| `app/api` | `run`, `publish`, `editions`, `editions/[date]`, `img/[date]/[n].jpg` (pública: é a URL que a Meta baixa). |
+| `app/api` | `run`, `publish`, `editions`, `editions/[id]`, `extra` (post avulso por link), `inbox/whatsapp` (webhook), `img/[id]/[n].jpg` (pública: é a URL que a Meta baixa). |
 | `lib/sources.ts` | Coleta: feeds RSS/Atom de veículos catarinenses + Brave News API. Dedup e janela de 36h. |
 | `lib/editor.ts` | Claude escolhe as 5 notícias, resume com as próprias palavras, separa oportunidades, escreve legenda. Saída JSON validada; links sempre resolvidos pelo item coletado. |
 | `lib/render.tsx` | Cards 1080x1350 (capa, 1 por notícia, oportunidades) via `next/og` → JPEG com sharp. |
 | `lib/instagram.ts` | Graph API: containers do carrossel → `media_publish`. |
+| `lib/article.ts` / `lib/whatsapp.ts` | Leitura de uma matéria por URL; Cloud API do WhatsApp (receber links, responder com a prévia). |
 | `lib/pipeline.ts` | Orquestração, datas em America/Sao_Paulo, autorização. |
 | `lib/store.ts` | Redis (edições + imagens com TTL de 90 dias). Sem Redis, memória (só dev). |
 | `deploy/` | `install.sh` (um comando), `Caddyfile` (HTTPS automático), `scheduler.sh`, nginx para VPS já ocupado. |
@@ -85,6 +86,28 @@ Os dados (edições e cards) ficam no Redis; para levar o histórico, copie o vo
    Cole as duas linhas no `.env` e `docker compose up -d`.
 
 Limites da API: até 10 imagens por carrossel, legenda até 2.200 caracteres.
+
+## Mandar uma notícia pelo WhatsApp
+
+Você manda o link de uma matéria para o número do SC em Alta; o sistema lê a página, escreve o
+resumo com as próprias palavras, gera o card e responde com a prévia. Você responde **PUBLICAR**
+e o post vai para o site e para o Instagram, ou **CANCELAR** para descartar. O mesmo link também
+pode ser colado no painel `/admin`, em "Criar post avulso".
+
+Configuração, uma vez só (Meta for Developers, no mesmo app usado para o Instagram):
+
+1. Adicione o produto **WhatsApp** ao app. A Meta dá um número de teste grátis para começar;
+   para produção, cadastre um número que não esteja em uso no aplicativo do WhatsApp.
+2. Em *WhatsApp → Configuração da API* copie o **ID do número de telefone** e gere um **token
+   permanente** (usuário do sistema no Business Manager com a permissão `whatsapp_business_messaging`).
+3. Em *WhatsApp → Configuração → Webhook* cadastre a URL `https://scemalta.com.br/api/inbox/whatsapp`,
+   um *verify token* à sua escolha e assine o campo **messages**.
+4. Preencha no `.env`: `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_TOKEN`, `WHATSAPP_VERIFY_TOKEN`,
+   `WHATSAPP_APP_SECRET` e `WHATSAPP_ALLOWED_NUMBERS` (os números que podem mandar links).
+   Depois `docker compose up -d`.
+
+Só números da lista são atendidos; mensagens de outros números são ignoradas. Cada post avulso
+aparece no painel marcado como **Extra**, com quem mandou e o link original.
 
 ## Desenvolvimento local
 

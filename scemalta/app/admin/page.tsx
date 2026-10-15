@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { cn, formatDate } from '@/lib/utils'
-import { CheckCircle2, XCircle, Send, Sparkles, RotateCcw, ExternalLink, AlertTriangle, Save, RefreshCw } from 'lucide-react'
+import { CheckCircle2, XCircle, Send, Sparkles, RotateCcw, ExternalLink, AlertTriangle, Save, RefreshCw, Link as LinkIcon } from 'lucide-react'
 import type { Edition, EditionStatus } from '@/lib/types'
 
 interface Config { instagram: boolean; anthropic: boolean; brave: boolean; autoPublish: boolean }
@@ -26,19 +26,20 @@ export default function NoticiasPage() {
   const [loading,   setLoading]   = useState(true)
   const [manchete,  setManchete]  = useState('')
   const [legenda,   setLegenda]   = useState('')
+  const [linkUrl,   setLinkUrl]   = useState('')
 
   const load = useCallback(async () => {
     const res  = await fetch('/api/editions')
     const json = await res.json()
     setEditions(json.editions || [])
     setConfig(json.config || null)
-    setSelected(prev => prev ?? json.editions?.[0]?.date ?? null)
+    setSelected(prev => prev ?? json.editions?.[0]?.id ?? null)
   }, [])
 
   useEffect(() => { load().finally(() => setLoading(false)) }, [load])
 
-  const current = editions.find(e => e.date === selected) || null
-  useEffect(() => { setManchete(current?.manchete ?? ''); setLegenda(current?.legenda ?? '') }, [current?.date, current?.updatedAt]) // eslint-disable-line react-hooks/exhaustive-deps
+  const current = editions.find(e => e.id === selected) || null
+  useEffect(() => { setManchete(current?.manchete ?? ''); setLegenda(current?.legenda ?? '') }, [current?.id, current?.updatedAt]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const call = async (label: string, url: string, init?: RequestInit) => {
     setBusy(label); setMsg(null)
@@ -48,7 +49,7 @@ export default function NoticiasPage() {
       if (!res.ok || json.error) throw new Error(json.error || `HTTP ${res.status}`)
       setMsg({ kind: 'ok', text: json.skipped ? `Nada feito: ${json.skipped}.` : `${label}: concluído.` })
       await load()
-      if (json.edition?.date) setSelected(json.edition.date)
+      if (json.edition?.id) setSelected(json.edition.id)
     } catch (err: any) {
       setMsg({ kind: 'err', text: `${label}: ${err.message}` })
       await load()
@@ -96,7 +97,7 @@ export default function NoticiasPage() {
               className={cn(btn, 'bg-ui-accent text-ui-black border-ui-accent hover:bg-ui-accent-dim')}>
               <Sparkles className="w-3.5 h-3.5" /> Gerar edição de hoje
             </button>
-            {current && current.status !== 'published' && (
+            {current && current.status !== 'published' && current.kind !== 'extra' && (
               <button onClick={() => call('Regenerar', `/api/run?date=${current.date}&force=1`)} disabled={busy !== null}
                 className={cn(btn, 'bg-ui-card text-ui-silver border-ui-border hover:text-ui-white')}>
                 <RotateCcw className="w-3.5 h-3.5" /> Regenerar {formatDate(current.date)}
@@ -108,6 +109,15 @@ export default function NoticiasPage() {
               </span>
             )}
           </div>
+
+          <form onSubmit={e => { e.preventDefault(); if (linkUrl.trim()) call('Post avulso', '/api/extra', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: linkUrl.trim() }) }).then(() => setLinkUrl('')) }}
+            className="flex flex-col sm:flex-row gap-2">
+            <input value={linkUrl} onChange={e => setLinkUrl(e.target.value)} placeholder="Cole o link de uma matéria para criar um post avulso" type="url"
+              className="flex-1 bg-ui-dark border border-ui-border rounded-lg px-3 py-2 text-sm text-ui-white" />
+            <button type="submit" disabled={busy !== null || !linkUrl.trim()} className={cn(btn, 'bg-ui-card text-ui-silver border-ui-border hover:text-ui-white')}>
+              <LinkIcon className="w-3.5 h-3.5" /> Criar post avulso
+            </button>
+          </form>
 
           {msg && (
             <div className={cn('rounded-xl border p-3 text-xs', msg.kind === 'ok' ? 'border-green-400/20 bg-green-400/10 text-green-300' : 'border-red-400/20 bg-red-400/10 text-red-300')}>
@@ -122,10 +132,10 @@ export default function NoticiasPage() {
               {loading ? <p className="p-4 text-xs text-ui-silver">Carregando...</p>
               : editions.length === 0 ? <p className="p-4 text-xs text-ui-silver">Nenhuma edição ainda. Clique em “Gerar edição de hoje”.</p>
               : editions.map(e => (
-                <button key={e.date} onClick={() => setSelected(e.date)}
-                  className={cn('w-full text-left px-4 py-3 border-b border-ui-border/60 hover:bg-ui-dark transition-colors cursor-pointer', selected === e.date && 'bg-ui-dark')}>
+                <button key={e.id} onClick={() => setSelected(e.id)}
+                  className={cn('w-full text-left px-4 py-3 border-b border-ui-border/60 hover:bg-ui-dark transition-colors cursor-pointer', selected === e.id && 'bg-ui-dark')}>
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-bold text-ui-white">{formatDate(e.date)}</span>
+                    <span className="text-sm font-bold text-ui-white">{formatDate(e.date)}{e.kind === 'extra' && <span className="ml-2 text-[10px] font-black uppercase tracking-wider text-ui-accent">Extra</span>}</span>
                     <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded border', STATUS[e.status].cls)}>{STATUS[e.status].label}</span>
                   </div>
                   <p className="mt-1 text-xs text-ui-silver truncate">{e.manchete || e.error || '—'}</p>
@@ -149,12 +159,13 @@ export default function NoticiasPage() {
                         </a>
                       )}
                       {current.status === 'published' && (
-                        <a href={`/${current.date}`} target="_blank" rel="noreferrer" className="text-xs font-bold text-ui-accent inline-flex items-center gap-1 hover:underline">
+                        <a href={`/${current.id}`} target="_blank" rel="noreferrer" className="text-xs font-bold text-ui-accent inline-flex items-center gap-1 hover:underline">
                           <ExternalLink className="w-3 h-3" /> Ver no site
                         </a>
                       )}
                     </div>
 
+                    {current.origem && <p className="text-xs text-ui-silver">Post avulso{current.origem.via === 'whatsapp' ? ` enviado pelo WhatsApp${current.origem.nome ? ` por ${current.origem.nome}` : ''}` : ' criado no painel'} · <a href={current.origem.url} target="_blank" rel="noreferrer" className="hover:text-ui-accent underline">matéria original</a></p>}
                     {current.error && <p className="text-xs text-orange-300 bg-orange-400/10 border border-orange-400/20 rounded-lg p-3">{current.error}</p>}
 
                     {current.noticias.length > 0 && (
@@ -173,25 +184,25 @@ export default function NoticiasPage() {
 
                         <div className="flex flex-wrap gap-2 pt-1">
                           {editable && (
-                            <button onClick={() => patch(current.date, { manchete, legenda }, 'Salvar textos')} disabled={busy !== null}
+                            <button onClick={() => patch(current.id, { manchete, legenda }, 'Salvar textos')} disabled={busy !== null}
                               className={cn(btn, 'bg-ui-card text-ui-silver border-ui-border hover:text-ui-white')}>
                               <Save className="w-3.5 h-3.5" /> Salvar textos
                             </button>
                           )}
                           {editable && current.status !== 'approved' && (
-                            <button onClick={() => patch(current.date, { status: 'approved' }, 'Aprovar')} disabled={busy !== null}
+                            <button onClick={() => patch(current.id, { status: 'approved' }, 'Aprovar')} disabled={busy !== null}
                               className={cn(btn, 'bg-blue-400/10 text-blue-400 border-blue-400/20 hover:bg-blue-400/20')}>
                               <CheckCircle2 className="w-3.5 h-3.5" /> Aprovar
                             </button>
                           )}
                           {editable && current.status !== 'rejected' && (
-                            <button onClick={() => patch(current.date, { status: 'rejected' }, 'Rejeitar')} disabled={busy !== null}
+                            <button onClick={() => patch(current.id, { status: 'rejected' }, 'Rejeitar')} disabled={busy !== null}
                               className={cn(btn, 'bg-red-400/10 text-red-400 border-red-400/20 hover:bg-red-400/20')}>
                               <XCircle className="w-3.5 h-3.5" /> Rejeitar
                             </button>
                           )}
                           {editable && (
-                            <button onClick={() => { if (confirm(`Publicar a edição de ${formatDate(current.date)} no site${config?.instagram ? ' e no Instagram' : ''} agora?`)) call('Publicar', `/api/publish?date=${current.date}`) }}
+                            <button onClick={() => { if (confirm(`Publicar a edição de ${formatDate(current.date)} no site${config?.instagram ? ' e no Instagram' : ''} agora?`)) call('Publicar', `/api/publish?id=${current.id}`) }}
                               disabled={busy !== null}
                               className={cn(btn, 'bg-green-400/10 text-green-400 border-green-400/20 hover:bg-green-400/20')}>
                               <Send className="w-3.5 h-3.5" /> Publicar agora
@@ -208,7 +219,7 @@ export default function NoticiasPage() {
                       <div className="flex gap-3 overflow-x-auto pb-2">
                         {Array.from({ length: cards }, (_, n) => (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img key={n} src={`/api/img/${current.date}/${n}.jpg?v=${encodeURIComponent(current.updatedAt)}`} alt={`Card ${n}`}
+                          <img key={n} src={`/api/img/${current.id}/${n}.jpg?v=${encodeURIComponent(current.updatedAt)}`} alt={`Card ${n}`}
                             className="w-44 shrink-0 rounded-lg border border-ui-border" loading="lazy" />
                         ))}
                       </div>

@@ -25,9 +25,9 @@ export default async function SiteHome() {
           <h2 className="mb-4 text-sm font-black uppercase tracking-[0.2em] text-ui-accent">Edições anteriores</h2>
           <ul className="divide-y divide-white/10">
             {published.slice(1, 15).map(e => (
-              <li key={e.date}>
-                <Link href={`/${e.date}`} className="flex items-center justify-between gap-4 py-3 hover:text-ui-accent">
-                  <span className="font-semibold">{e.manchete}</span>
+              <li key={e.id}>
+                <Link href={`/${e.id}`} className="flex items-center justify-between gap-4 py-3 hover:text-ui-accent">
+                  <span className="font-semibold">{e.kind === 'extra' && <span className="mr-2 rounded border border-ui-accent/40 px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-ui-accent">Extra</span>}{e.manchete}</span>
                   <span className="shrink-0 text-xs text-slate-400">{formatLongDate(e.date)}</span>
                 </Link>
               </li>

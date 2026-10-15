@@ -40,7 +40,18 @@ export interface InstagramResult {
   publishedAt: string
 }
 
+export type EditionKind = 'diaria' | 'extra'
+
+export interface EditionOrigin {
+  via:   'whatsapp' | 'painel'
+  de?:   string   // número de quem mandou (WhatsApp)
+  nome?: string
+  url:   string   // link da matéria
+}
+
 export interface Edition {
+  id:            string   // 'YYYY-MM-DD' (diária) ou 'YYYY-MM-DD-extra-HHMMSS' (post avulso)
+  kind:          EditionKind
   date:          string   // YYYY-MM-DD (America/Sao_Paulo)
   status:        EditionStatus
   createdAt:     string
@@ -53,6 +64,7 @@ export interface Edition {
   rawCount:      number   // quantos itens brutos entraram na edição
   cardCount:     number   // quantos cards o carrossel tem
   instagram?:    InstagramResult
+  origem?:       EditionOrigin
   error?:        string
 }
 

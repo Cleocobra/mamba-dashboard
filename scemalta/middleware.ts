@@ -4,7 +4,8 @@ import { NextRequest, NextResponse } from 'next/server'
 // Aceita: Bearer CRON_SECRET (agendador/cron) ou login básico ADMIN_USER/ADMIN_PASSWORD.
 function isProtected(pathname: string): boolean {
   if (pathname === '/admin' || pathname.startsWith('/admin/')) return true
-  return pathname.startsWith('/api/') && !pathname.startsWith('/api/img/')
+  // /api/img/* é público (imagens dos cards); /api/inbox/* é o webhook do WhatsApp (valida por assinatura)
+  return pathname.startsWith('/api/') && !pathname.startsWith('/api/img/') && !pathname.startsWith('/api/inbox/')
 }
 
 export function middleware(req: NextRequest) {
