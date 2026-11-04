@@ -1,0 +1,79 @@
+# Portal DTF — stack completa: app + redis + agendador (+ caddy com HTTPS automático).
+#
+#   VPS próprio (portas 80/443 livres):  COMPOSE_PROFILES=edge no .env  → docker compose up -d --build
+#   VPS com nginx/outro proxy na 80/443: COMPOSE_PROFILES= (vazio)      → docker compose up -d --build
+#                                        e aponte o proxy para http://portaldtf-app:3000 (rede "portaldtf")
+services:
+  app:
+    build: .
+    image: portaldtf
+    container_name: portaldtf-app
+    restart: always
+    env_file: .env
+    environment:
+      - NODE_ENV=production
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks: [portaldtf]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  redis:
+    image: redis:7-alpine
+    container_name: portaldtf-redis
+    restart: always
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: [portaldtf_redis:/data]
+    networks: [portaldtf]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Agendador embutido: 06:00 gera o(s) tutorial(is) do dia, 08:00 publica (horário de Brasília).
+  scheduler:
+    image: alpine:3.20
+    container_name: portaldtf-scheduler
+    restart: always
+    environment:
+      - TZ=America/Sao_Paulo
+      - CRON_SECRET=${CRON_SECRET}
+      - RUN_HOUR=${PORTAL_RUN_HOUR:-6}
+      - PUBLISH_HOUR=${PORTAL_PUBLISH_HOUR:-8}
+    volumes: [./deploy/scheduler.sh:/scheduler.sh:ro]
+    command: ["sh", "/scheduler.sh"]
+    depends_on: [app]
+    networks: [portaldtf]
+
+  # HTTPS automático (Let's Encrypt) para DOMAIN e www.DOMAIN.
+  caddy:
+    image: caddy:2-alpine
+    container_name: portaldtf-caddy
+    restart: always
+    profiles: [edge]
+    ports: ["80:80", "443:443", "443:443/udp"]
+    environment:
+      - DOMAIN=${DOMAIN}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - portaldtf_caddy_data:/data
+      - portaldtf_caddy_config:/config
+    depends_on: [app]
+    networks: [portaldtf]
+
+volumes:
+  portaldtf_redis:
+  portaldtf_caddy_data:
+  portaldtf_caddy_config:
+
+networks:
+  portaldtf:
+    name: portaldtf
