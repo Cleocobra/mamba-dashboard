@@ -1,33 +1,49 @@
 # Medição de audiência do portal SC em Alta (versão que roda no VPS)
 
 Hoje o site não carrega nenhum script de medição, então não há como saber quantas pessoas
-acessaram. Este pacote adiciona Google Analytics 4 (e, opcionalmente, o Pixel da Meta),
-ligados por variáveis do `.env`. Sem as variáveis, nada é carregado.
-
-## Antes (no Google)
-
-1. Em analytics.google.com, crie a propriedade **SC em Alta** (fuso America/Sao_Paulo, moeda BRL)
-   com um fluxo de dados **Web** para `https://scemalta.com.br`. Copie o **ID da métrica** (`G-…`).
-2. Opcional: em search.google.com/search-console, adicione a propriedade de domínio
-   `scemalta.com.br` (verificação por TXT no DNS da Cobrahosting). Dá as buscas do Google que
-   trazem gente ao portal, sem script nenhum.
+acessaram. Este pacote adiciona o Google Tag Manager (contêiner **GTM-P58FMRT3**), ligado por
+variável do `.env`. O GA4, o Pixel da Meta e o que mais for preciso ficam configurados dentro do
+GTM, sem mexer no site de novo. Sem a variável, nada é carregado.
 
 ## Aplicar (no VPS, dentro de `/opt/scemalta-src/scemalta`)
 
 1. Copie `app/(site)/Analytics.tsx` para o mesmo caminho (a pasta se chama literalmente `(site)`).
 2. Em `app/(site)/layout.tsx`: `import Analytics from './Analytics'` e renderize `<Analytics />`
-   dentro do `<body>`, logo antes de fechar a tag (fora de qualquer `<main>`).
+   dentro do `<body>`, logo depois de abri-lo (antes do conteúdo).
 3. No `.env`:
    ```
-   GA_ID=G-XXXXXXXXXX
-   # META_PIXEL_ID=   (opcional)
+   GTM_ID=GTM-P58FMRT3
    ```
+   (`GA_ID` e `META_PIXEL_ID` existem para carregar GA4/pixel direto, sem GTM; com o GTM ligado,
+   deixe os dois vazios para não medir em dobro.)
 4. `docker compose up -d --build app`
-5. Conferir: `curl -s https://scemalta.com.br/ | grep -o 'gtag/js?id=G-[A-Z0-9]*'` deve mostrar o ID.
-   No GA4, "Tempo real" passa a mostrar os acessos em até 1 minuto.
-6. Commit local: `git add -A && git commit -m "feat: analytics (GA4 e pixel) no portal"`.
+5. Conferir: `curl -s https://scemalta.com.br/ | grep -o 'gtm.js?id=GTM-[A-Z0-9]*'` deve mostrar o ID.
+6. Commit local: `git add -A && git commit -m "feat: Google Tag Manager no portal"`.
 
-## O que dá para medir dos últimos 30 dias (antes do GA4)
+## No Tag Manager (tagmanager.google.com, contêiner GTM-P58FMRT3)
+
+O GTM sozinho não mede nada: ele só carrega as tags que estiverem publicadas no contêiner.
+1. Em analytics.google.com, crie (ou localize) a propriedade **SC em Alta** com fluxo Web para
+   `https://scemalta.com.br` e copie o ID da métrica (`G-…`).
+2. No GTM: Tags → Nova → **Tag do Google** → ID da tag = o `G-…` → acionador **Initialization -
+   All Pages** → Salvar.
+3. (Opcional) Tags → Nova → **Pixel da Meta** (modelo da galeria) com o ID do pixel →
+   acionador All Pages.
+4. **Enviar → Publicar** o contêiner. Sem publicar, o site carrega o GTM mas nenhuma tag dispara.
+5. Teste com "Visualizar" (Tag Assistant) apontando para https://scemalta.com.br, ou olhe
+   "Tempo real" no GA4 um minuto depois.
+
+Opcional: em search.google.com/search-console, adicione a propriedade de domínio
+`scemalta.com.br` (TXT no DNS da Cobrahosting). Mostra as buscas do Google que trazem leitores.
+
+## Observação sobre o snippet colado
+
+O trecho recebido (`gtm.js?id=GTM-…` + `gtag('js', new Date())`) carrega o contêiner mas não
+faz o push de `gtm.start`/`gtm.js` no dataLayer, que é o que dispara os acionadores "Todas as
+páginas". O componente usa o snippet oficial do GTM (com esse push e o `<noscript>`), então as
+tags disparam normalmente.
+
+## O que dá para medir dos últimos 30 dias (antes do GTM)
 
 Só o que o nginx central registrou. Para uma estimativa, rode no VPS:
 ```bash
