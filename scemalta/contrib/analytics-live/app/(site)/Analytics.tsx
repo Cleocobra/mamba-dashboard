@@ -1,0 +1,60 @@
+// Medição de audiência do portal. Entra no layout do site (ver APPLY.md).
+// Só carrega o que estiver configurado no .env:
+//   GTM_ID=GTM-XXXXXXX     Google Tag Manager (o contêiner carrega GA4, pixel etc. do jeito que
+//                          for configurado em tagmanager.google.com)
+//   GA_ID=G-XXXXXXXXXX     Google Analytics 4 direto, sem GTM (use um ou outro, não os dois)
+//   META_PIXEL_ID=123456   Pixel da Meta direto (opcional; se já estiver no GTM, não repita aqui)
+// Lido no servidor a cada render, então basta reiniciar o app depois de mudar o .env.
+
+import Script from 'next/script'
+
+export default function Analytics() {
+  const gtm   = (process.env.GTM_ID || '').trim()
+  const ga    = (process.env.GA_ID || '').trim()
+  const pixel = (process.env.META_PIXEL_ID || '').trim()
+  if (!gtm && !ga && !pixel) return null
+  return (
+    <>
+      {gtm && (
+        <>
+          {/* Snippet oficial do GTM: o push de gtm.start/gtm.js é o que dispara os acionadores "Todas as páginas". */}
+          <Script id="gtm" strategy="afterInteractive">{`
+            (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+            new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+            j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+            'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+            })(window,document,'script','dataLayer',${JSON.stringify(gtm)});
+          `}</Script>
+          <noscript>
+            <iframe
+              src={`https://www.googletagmanager.com/ns.html?id=${encodeURIComponent(gtm)}`}
+              height="0" width="0" style={{ display: 'none', visibility: 'hidden' }}
+            />
+          </noscript>
+        </>
+      )}
+      {ga && (
+        <>
+          <Script src={`https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(ga)}`} strategy="afterInteractive" />
+          <Script id="ga4" strategy="afterInteractive">{`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', ${JSON.stringify(ga)});
+          `}</Script>
+        </>
+      )}
+      {pixel && (
+        <Script id="meta-pixel" strategy="afterInteractive">{`
+          !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+          n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
+          n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
+          t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,
+          document,'script','https://connect.facebook.net/en_US/fbevents.js');
+          fbq('init', ${JSON.stringify(pixel)});
+          fbq('track', 'PageView');
+        `}</Script>
+      )}
+    </>
+  )
+}
