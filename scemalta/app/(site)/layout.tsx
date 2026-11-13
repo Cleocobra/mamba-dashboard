@@ -1,9 +1,11 @@
 import Link from 'next/link'
+import Analytics from './Analytics'
 
 // Layout do site público.
 export default function SiteLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen">
+      <Analytics />
       <header className="border-b border-white/10">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4">
           <Link href="/" className="flex items-center gap-3">
